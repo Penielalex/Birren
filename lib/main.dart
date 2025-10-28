@@ -1,3 +1,4 @@
+import 'package:birren/data/service/sms_service.dart';
 import 'package:birren/presentation/controllers/auth_controller.dart';
 import 'package:birren/presentation/pages/login_page.dart';
 import 'package:birren/presentation/theme/colors.dart';
@@ -49,6 +50,7 @@ void main() async {
 
   // --- Auth Controller ---
   final prefs = SharedPrefsService();
+  final smsServices = SmsService();
   final authController = AuthController(
     prefs: prefs,
     getUsers: getUsersUseCase,
@@ -68,6 +70,7 @@ void main() async {
   final deleteBankUseCase = DeleteBankUseCase(bankRepository);
 
   final bankController = BankController(
+    smsService: smsServices,
     prefs: prefs,
     getBanksUseCase: getBanksUseCase,
     getBanksByUserUseCase: getBanksByUserUseCase,

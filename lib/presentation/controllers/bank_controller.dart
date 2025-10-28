@@ -1,3 +1,4 @@
+import 'package:birren/data/service/sms_service.dart';
 import 'package:get/get.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,7 @@ import '../widgets/app_snackbar.dart';
 
 class BankController extends GetxController {
   final SharedPrefsService prefs;
+  final SmsService smsService;
   final GetBanksUseCase getBanksUseCase;
   final GetBanksByUserUseCase getBanksByUserUseCase;
   final AddBankUseCase addBankUseCase;
@@ -17,6 +19,7 @@ class BankController extends GetxController {
   final DeleteBankUseCase deleteBankUseCase;
 
   BankController({
+    required this.smsService,
     required this.getBanksUseCase,
     required this.getBanksByUserUseCase,
     required this.addBankUseCase,
@@ -27,6 +30,7 @@ class BankController extends GetxController {
 
   var banks = <Bank>[].obs;
   var isLoading = false.obs;
+  
   var logger = Logger();
 
   @override
@@ -57,15 +61,19 @@ class BankController extends GetxController {
     }
   }
 
-  Future<void> addBank(String bankName, String displayName) async {
+  Future<void> addBank(String bankName, String? displayName) async {
     final id = await prefs.getId();
     logger.i("${int.parse(id!)}");
+    final amount = await smsService.fetchLastAmount(sender: bankName);
+    if(amount != null){
+
+    logger.i("${amount== null}");
     final now = DateTime.now();
     final bank = Bank(
       userId: int.parse(id!),
       bankName: bankName,
       displayName: displayName,
-      balance: 500,
+      balance: amount["balanceAmount"],
       createdAt: now,
       updatedAt: now,
     );
@@ -74,7 +82,9 @@ class BankController extends GetxController {
     }catch(e){
       AppSnackbar.showError(e.toString());
     }
-    await fetchBanks();
+    await fetchBanks();}else{
+      AppSnackbar.showError("Bank was not found in messages. ");
+    }
   }
 
   Future<void> editBank(Bank bank) async {

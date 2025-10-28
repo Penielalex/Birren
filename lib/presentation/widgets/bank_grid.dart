@@ -62,11 +62,7 @@ class _BanksGridState extends State<BanksGrid> {
 
     return Obx(() {
       final banks = bankController.banks;
-      if (selectedIndexes.length < banks.length) {
-        for (int i = selectedIndexes.length; i < banks.length; i++) {
-          selectedIndexes.add(i);
-        }
-      }
+
       final banksToShow = showAll
           ? banks
           : banks.length > 4

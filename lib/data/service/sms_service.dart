@@ -1,44 +1,148 @@
-// import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
-// import 'package:permission_handler/permission_handler.dart';
-//
-// class SmsService {
-//   final SmsQuery _query = SmsQuery();
-//
-//   /// Request SMS permission
-//   Future<bool> requestPermission() async {
-//     final status = await Permission.sms.status;
-//     if (status.isGranted) return true;
-//
-//     final result = await Permission.sms.request();
-//     return result.isGranted;
-//   }
-//
-//   Future<SmsMessage?> fetchLatestMessageForBank(String bankName) async {
-//     final messages = await _query.querySms(
-//       kinds: [SmsQueryKind.inbox],
-//       sort: true,
-//       count: 200,
-//     );
-//
-//     for (final msg in messages) {
-//       final body = msg.body?.toLowerCase() ?? '';
-//       final sender = msg.address?.toLowerCase() ?? '';
-//
-//       if (body.contains(bankName.toLowerCase()) ||
-//           sender.contains(bankName.toLowerCase())) {
-//         return msg;
-//       }
-//     }
-//
-//     return null;
-//   }
-//
-//   double extractAmount(String messageBody) {
-//     final regex = RegExp(r'(\d{1,3}(,\d{3})*(\.\d{1,2})?)');
-//     final match = regex.firstMatch(messageBody);
-//     if (match != null) {
-//       return double.tryParse(match.group(0)!.replaceAll(',', '')) ?? 0.0;
-//     }
-//     return 0.0;
-//   }
-// }
+import 'package:logger/logger.dart';
+import 'package:telephony/telephony.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+class SmsService {
+  final Telephony telephony = Telephony.instance;
+  final logger =Logger();
+
+  Future<bool> requestPermission() async {
+    final status = await Permission.sms.request();
+    return status.isGranted;
+  }
+
+  Future<Map<String, dynamic>?>  fetchLastAmount({
+    required String sender,
+  }) async {
+
+   try{
+    List<SmsMessage> messages = await telephony.getInboxSms(
+      columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
+      filter: SmsFilter.where(SmsColumn.ADDRESS).equals(sender),
+      sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
+    );
+
+    // Iterate over messages to find the first one with a valid transaction
+    for (var msg in messages) {
+      final transaction = parseBankSmsByBank(msg.address, msg.body);
+
+      if (transaction != null) {
+        logger.i(transaction);
+        return transaction; // or return transaction if you prefer
+      }
+    } }catch(e, stack){
+     logger.e("Error fetching messages for $sender: $e");
+     logger.e(stack);
+     return null;
+   }
+
+    return null;
+  }
+
+  Map<String, dynamic>? parseBankSmsByBank(String? bank, String? body) {
+    String? transactionType;
+    double? firstAmount;
+    double? balanceAmount;
+
+    switch (bank?.toLowerCase()) {
+      case 'boa': // Bank of Abyssinia
+        final typesBOA = ['credited', 'debited'];
+        for (var type in typesBOA) {
+          if (body!.toLowerCase().contains(type)) {
+            transactionType = type;
+            break;
+          }
+        }
+        final firstAmountRegExpBOA = RegExp(r'ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
+        final firstMatchBOA = firstAmountRegExpBOA.firstMatch(body!);
+        if (firstMatchBOA != null) {
+          firstAmount = double.tryParse(firstMatchBOA.group(1)!.replaceAll(',', ''));
+        }
+        final balanceRegExpBOA = RegExp(r'Available Balance\s*:?\s*ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
+        final balanceMatchBOA = balanceRegExpBOA.firstMatch(body);
+        if (balanceMatchBOA != null) {
+          balanceAmount = double.tryParse(balanceMatchBOA.group(1)!.replaceAll(',', ''));
+        }
+        break;
+
+      case 'cbe': // Commercial Bank of Ethiopia
+        final typesCBE = ['credited', 'debited'];
+        for (var type in typesCBE) {
+          if (body!.toLowerCase().contains(type)) {
+            transactionType = type;
+            break;
+          }
+        }
+        final firstAmountRegExpCBE = RegExp(r'ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
+        final firstMatchCBE = firstAmountRegExpCBE.firstMatch(body!);
+        if (firstMatchCBE != null) {
+          firstAmount = double.tryParse(firstMatchCBE.group(1)!.replaceAll(',', ''));
+        }
+        final balanceRegExpCBE = RegExp(r'Current Balance is\s*:?\s*ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
+        final balanceMatchCBE = balanceRegExpCBE.firstMatch(body);
+        if (balanceMatchCBE != null) {
+          balanceAmount = double.tryParse(balanceMatchCBE.group(1)!.replaceAll(',', ''));
+        }
+        break;
+
+      case '127': // Bank 127
+        final types127 = ['transferred', 'recharged', 'paid', 'received'];
+        for (var type in types127) {
+          if (body!.toLowerCase().contains(type)) {
+            transactionType = type;
+            break;
+          }
+        }
+        final firstAmountRegExp127 = RegExp(r'ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
+        final firstMatch127 = firstAmountRegExp127.firstMatch(body!);
+        if (firstMatch127 != null) {
+          firstAmount = double.tryParse(firstMatch127.group(1)!.replaceAll(',', ''));
+        }
+        final balanceRegExp127 = RegExp(r'balance is\s*:?\s*ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
+        final balanceMatch127 = balanceRegExp127.firstMatch(body);
+        if (balanceMatch127 != null) {
+          balanceAmount = double.tryParse(balanceMatch127.group(1)!.replaceAll(',', ''));
+        }
+        break;
+
+      case 'mpesa': // M-PESA
+        final typesMpesa = ['received', 'sent', 'bought', 'paid'];
+        for (var type in typesMpesa) {
+          if (body!.toLowerCase().contains(type)) {
+            transactionType = type;
+            break;
+          }
+        }
+
+        // First amount: number before "birr"
+        final firstAmountRegExpMpesa = RegExp(r'([\d,]+\.?\d*)\s*birr', caseSensitive: false);
+        final firstMatchMpesa = firstAmountRegExpMpesa.firstMatch(body!);
+        if (firstMatchMpesa != null) {
+          firstAmount = double.tryParse(firstMatchMpesa.group(1)!.replaceAll(',', ''));
+        }
+
+        // Balance amount: after "balance is" and before "Birr"
+        final balanceRegExpMpesa = RegExp(r'balance is\s*:?\s*([\d,]+\.?\d*)\s*birr', caseSensitive: false);
+        final balanceMatchMpesa = balanceRegExpMpesa.firstMatch(body);
+        if (balanceMatchMpesa != null) {
+          balanceAmount = double.tryParse(balanceMatchMpesa.group(1)!.replaceAll(',', ''));
+        }
+        break;
+
+      default:
+        print("Bank parser not implemented for $bank");
+    }
+
+    if (transactionType != null && firstAmount != null && balanceAmount != null) {
+      return {
+        'transactionType': transactionType,
+        'firstAmount': firstAmount,
+        'balanceAmount': balanceAmount,
+      };
+    }
+
+    // Return null if any of the three is null
+    return null;
+  }
+
+}

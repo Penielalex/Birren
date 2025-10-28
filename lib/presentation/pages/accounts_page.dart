@@ -8,6 +8,7 @@ import 'package:get/get_core/src/get_main.dart';
 import '../../domain/entities/bank.dart';
 import '../theme/text_style.dart';
 import '../widgets/bank_grid.dart';
+import '../widgets/transaction_list.dart';
 
 
 
@@ -68,6 +69,8 @@ class _AccountsPageState extends State<AccountsPage> {
 
               const SizedBox(height: 16),
 
+
+
               // Display Name Field
               CustomTextField(controller: _displayNameController, hintText: "Display Name", suffixIcon:Icons.info_outline, onSuffixPressed: (){
                 showDialog(
@@ -98,9 +101,12 @@ class _AccountsPageState extends State<AccountsPage> {
             ElevatedButton(
               onPressed: ()  {
                 final bankName = _bankNameController.text.trim();
-                final displayName = _displayNameController.text.trim();
+                String? displayName = _displayNameController.text.trim();
 
                 if (bankName.isEmpty) return; // Require bank name
+                if (displayName.isEmpty){
+                  displayName = null;
+                }
                 bankController.addBank(bankName, displayName);
 
 
@@ -122,23 +128,44 @@ class _AccountsPageState extends State<AccountsPage> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
+          //padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              BanksGrid(
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: BanksGrid(
 
-                onAddBank:_showAddBankDialog,
+                  onAddBank:_showAddBankDialog,
+                ),
               ),
               Divider(color: Colors.white24,),
-              SizedBox(height: 24),
+              SizedBox(height: 100),
 
               Center(
-                child: Text(
-                  'Other content goes here',
-                  style: TextStyle(fontSize: 18),
+                child: RoundedCardWithCircle(
+                  circleChild: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text("12,500 Birr", style:AppTextStyles.headline1),
+                      SizedBox(height: 4),
+                    Text("Total Balance", style: AppTextStyles.midBody1),
+
+
+                  ],),
+                  circleColor: Colors.white,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text("Bank Account", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 4),
+                      Text("Balance: 12,500 Birr"),
+
+                    ],
+                  ),
                 ),
+
               ),
               SizedBox(height: 24),
             ],

@@ -2,7 +2,7 @@ class Bank {
   final int? id;           // Primary key
   final int userId;        // ID of the user this bank belongs to
   final String bankName;   // Official bank name
-  final String displayName; // Custom name to display in app
+  final String? displayName; // Custom name to display in app
   final double balance;    // Current balance
   final DateTime createdAt; // Creation timestamp
   final DateTime updatedAt; // Last update timestamp
@@ -11,7 +11,7 @@ class Bank {
     this.id,
     required this.userId,
     required this.bankName,
-    required this.displayName,
+     this.displayName,
     required this.balance,
     required this.createdAt,
     required this.updatedAt,

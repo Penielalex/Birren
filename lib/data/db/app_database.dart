@@ -20,7 +20,7 @@ class Banks extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get userId => integer().customConstraint('REFERENCES users(id)')();
   TextColumn get bankName => text()();
-  TextColumn get displayName => text()();
+  TextColumn get displayName => text().nullable()();
   RealColumn get balance => real()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();

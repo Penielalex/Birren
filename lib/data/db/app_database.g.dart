@@ -370,8 +370,8 @@ class $BanksTable extends Banks with TableInfo<$BanksTable, Bank> {
       const VerificationMeta('displayName');
   @override
   late final GeneratedColumn<String> displayName = GeneratedColumn<String>(
-      'display_name', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+      'display_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _balanceMeta =
       const VerificationMeta('balance');
   @override
@@ -427,8 +427,6 @@ class $BanksTable extends Banks with TableInfo<$BanksTable, Bank> {
           _displayNameMeta,
           displayName.isAcceptableOrUnknown(
               data['display_name']!, _displayNameMeta));
-    } else if (isInserting) {
-      context.missing(_displayNameMeta);
     }
     if (data.containsKey('balance')) {
       context.handle(_balanceMeta,
@@ -464,7 +462,7 @@ class $BanksTable extends Banks with TableInfo<$BanksTable, Bank> {
       bankName: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}bank_name'])!,
       displayName: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}display_name'])!,
+          .read(DriftSqlType.string, data['${effectivePrefix}display_name']),
       balance: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}balance'])!,
       createdAt: attachedDatabase.typeMapping
@@ -484,7 +482,7 @@ class Bank extends DataClass implements Insertable<Bank> {
   final int id;
   final int userId;
   final String bankName;
-  final String displayName;
+  final String? displayName;
   final double balance;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -492,7 +490,7 @@ class Bank extends DataClass implements Insertable<Bank> {
       {required this.id,
       required this.userId,
       required this.bankName,
-      required this.displayName,
+      this.displayName,
       required this.balance,
       required this.createdAt,
       required this.updatedAt});
@@ -502,7 +500,9 @@ class Bank extends DataClass implements Insertable<Bank> {
     map['id'] = Variable<int>(id);
     map['user_id'] = Variable<int>(userId);
     map['bank_name'] = Variable<String>(bankName);
-    map['display_name'] = Variable<String>(displayName);
+    if (!nullToAbsent || displayName != null) {
+      map['display_name'] = Variable<String>(displayName);
+    }
     map['balance'] = Variable<double>(balance);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -514,7 +514,9 @@ class Bank extends DataClass implements Insertable<Bank> {
       id: Value(id),
       userId: Value(userId),
       bankName: Value(bankName),
-      displayName: Value(displayName),
+      displayName: displayName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(displayName),
       balance: Value(balance),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -528,7 +530,7 @@ class Bank extends DataClass implements Insertable<Bank> {
       id: serializer.fromJson<int>(json['id']),
       userId: serializer.fromJson<int>(json['userId']),
       bankName: serializer.fromJson<String>(json['bankName']),
-      displayName: serializer.fromJson<String>(json['displayName']),
+      displayName: serializer.fromJson<String?>(json['displayName']),
       balance: serializer.fromJson<double>(json['balance']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -541,7 +543,7 @@ class Bank extends DataClass implements Insertable<Bank> {
       'id': serializer.toJson<int>(id),
       'userId': serializer.toJson<int>(userId),
       'bankName': serializer.toJson<String>(bankName),
-      'displayName': serializer.toJson<String>(displayName),
+      'displayName': serializer.toJson<String?>(displayName),
       'balance': serializer.toJson<double>(balance),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -552,7 +554,7 @@ class Bank extends DataClass implements Insertable<Bank> {
           {int? id,
           int? userId,
           String? bankName,
-          String? displayName,
+          Value<String?> displayName = const Value.absent(),
           double? balance,
           DateTime? createdAt,
           DateTime? updatedAt}) =>
@@ -560,7 +562,7 @@ class Bank extends DataClass implements Insertable<Bank> {
         id: id ?? this.id,
         userId: userId ?? this.userId,
         bankName: bankName ?? this.bankName,
-        displayName: displayName ?? this.displayName,
+        displayName: displayName.present ? displayName.value : this.displayName,
         balance: balance ?? this.balance,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
@@ -612,7 +614,7 @@ class BanksCompanion extends UpdateCompanion<Bank> {
   final Value<int> id;
   final Value<int> userId;
   final Value<String> bankName;
-  final Value<String> displayName;
+  final Value<String?> displayName;
   final Value<double> balance;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -629,13 +631,12 @@ class BanksCompanion extends UpdateCompanion<Bank> {
     this.id = const Value.absent(),
     required int userId,
     required String bankName,
-    required String displayName,
+    this.displayName = const Value.absent(),
     required double balance,
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   })  : userId = Value(userId),
         bankName = Value(bankName),
-        displayName = Value(displayName),
         balance = Value(balance);
   static Insertable<Bank> custom({
     Expression<int>? id,
@@ -661,7 +662,7 @@ class BanksCompanion extends UpdateCompanion<Bank> {
       {Value<int>? id,
       Value<int>? userId,
       Value<String>? bankName,
-      Value<String>? displayName,
+      Value<String?>? displayName,
       Value<double>? balance,
       Value<DateTime>? createdAt,
       Value<DateTime>? updatedAt}) {
@@ -1893,7 +1894,7 @@ typedef $$BanksTableCreateCompanionBuilder = BanksCompanion Function({
   Value<int> id,
   required int userId,
   required String bankName,
-  required String displayName,
+  Value<String?> displayName,
   required double balance,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
@@ -1902,7 +1903,7 @@ typedef $$BanksTableUpdateCompanionBuilder = BanksCompanion Function({
   Value<int> id,
   Value<int> userId,
   Value<String> bankName,
-  Value<String> displayName,
+  Value<String?> displayName,
   Value<double> balance,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
@@ -2152,7 +2153,7 @@ class $$BanksTableTableManager extends RootTableManager<
             Value<int> id = const Value.absent(),
             Value<int> userId = const Value.absent(),
             Value<String> bankName = const Value.absent(),
-            Value<String> displayName = const Value.absent(),
+            Value<String?> displayName = const Value.absent(),
             Value<double> balance = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
@@ -2170,7 +2171,7 @@ class $$BanksTableTableManager extends RootTableManager<
             Value<int> id = const Value.absent(),
             required int userId,
             required String bankName,
-            required String displayName,
+            Value<String?> displayName = const Value.absent(),
             required double balance,
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
