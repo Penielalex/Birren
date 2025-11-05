@@ -56,22 +56,38 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
   }
 
   /// Update a transaction
-  Future<void> updateTransaction(Transaction transaction) async {
+  Future<void> updateTransaction({
+    required int id,
+    int? bankId,
+    String? category,
+    String? type,
+    double? amount,
+    DateTime? dateOf,
+  }) async {
     final now = DateTime.now();
-    await (update(transactions)..where((t) => t.id.equals(transaction.id!))).write(
-      TransactionsCompanion(
-        bankId: Value(transaction.bankId),
-        category: Value(transaction.category),
-        type: Value(transaction.type),
-        amount: Value(transaction.amount),
-        dateOf: Value(transaction.dateOf),
-        updatedAt: Value(now),
-      ),
+
+    final companion = TransactionsCompanion(
+      bankId: bankId != null ? Value(bankId) : Value.absent(),
+      category: category != null ? Value(category) : Value.absent(),
+      type: type != null ? Value(type) : Value.absent(),
+      amount: amount != null ? Value(amount) : Value.absent(),
+      dateOf: dateOf != null ? Value(dateOf) : Value.absent(),
+      updatedAt: Value(now), // always update updatedAt
     );
+
+    await (update(transactions)..where((t) => t.id.equals(id))).write(companion);
   }
+
 
   /// Delete a transaction
   Future<void> deleteTransaction(int id) async {
     await (delete(transactions)..where((t) => t.id.equals(id))).go();
   }
+
+  Future<void> deleteTransactionsByBankId(int bankId) async {
+    await (delete(transactions)..where((t) => t.bankId.equals(bankId))).go();
+  }
+
 }
+
+

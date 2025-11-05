@@ -1,7 +1,10 @@
 import 'dart:math';
 
+import 'package:birren/presentation/controllers/bank_controller.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:get/get_core/src/get_main.dart';
 
 class RoundedCardWithCircle extends StatefulWidget {
   final Widget child; // Main content inside the rounded card
@@ -35,12 +38,14 @@ class _RoundedCardWithCircleState extends State<RoundedCardWithCircle> with Tick
   late AnimationController _expandController;
   bool expandPhase = false;
 
+  final BankController bankController = Get.find<BankController>();
+
   @override
   void initState() {
     super.initState();
     _spinController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 3),
+      duration:  Duration(seconds: 3),
     );
 
     // Phase 2: Expand (half → full circle)
@@ -115,8 +120,8 @@ class _RoundedCardWithCircleState extends State<RoundedCardWithCircle> with Tick
                   painter: GradientArcPainter(
                     spinProgress: _spinController.value,
                     expandProgress: _expandController.value,
-                    startColor: AppColors.accent,
-                    endColor: Colors.green,
+                    startColor: AppColors.accent.withOpacity(0.4),
+                    endColor: Colors.green.withOpacity(0.4),
                   ),
                   child: Container(
                     width: 200,
@@ -175,7 +180,7 @@ class GradientArcPainter extends CustomPainter {
     final gradient = SweepGradient(
       startAngle: startAngle,
       endAngle: startAngle + sweepAngle,
-      colors: [startColor, endColor,startColor],
+      colors: [startColor, endColor],
     );
 
     final paint = Paint()

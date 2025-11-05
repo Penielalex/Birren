@@ -32,9 +32,20 @@ class TransactionRepositoryImpl implements TransactionRepository {
       ));
 
   @override
-  Future<void> updateTransaction(Transaction transaction) =>
-      dao.updateTransaction(transaction);
+  Future<void> updateTransaction( int id,
+      int? bankId,
+      String? category,
+      String? type,
+      double? amount,
+      DateTime? dateOf,) =>
+      dao.updateTransaction(id: id, bankId: bankId, category: category, type: type, amount: amount, dateOf: dateOf);
 
   @override
   Future<void> deleteTransaction(int id) => dao.deleteTransaction(id);
+
+  @override
+  Future<void> deleteTransactionWithBankId(int bankId) => dao.deleteTransactionsByBankId(bankId);
+
+
+
 }

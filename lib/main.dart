@@ -59,6 +59,13 @@ void main() async {
   Get.put(authController);
   await authController.initAuth();
 
+  final transactionDao = TransactionDao(db);
+  final transactionRepository = TransactionRepositoryImpl(dao: transactionDao);
+
+  final addTransactionUseCase = CreateTransactionUseCase(transactionRepository);
+  final deleteTransactionWithBankIDUseCase = DeleteTransactionWithBankIdUseCase(transactionRepository);
+
+
   // --- Bank Setup ---
   final bankDao = BankDao(db);
   final bankRepository = BankRepositoryImpl(dao: bankDao);
@@ -77,24 +84,29 @@ void main() async {
     addBankUseCase: addBankUseCase,
     updateBankUseCase: updateBankUseCase,
     deleteBankUseCase: deleteBankUseCase,
+    createTransactionUseCase: addTransactionUseCase,
+    deleteTransactionWithBankIdUseCase: deleteTransactionWithBankIDUseCase
   );
   Get.put(bankController);
 
   // --- Transaction Setup ---
-  final transactionDao = TransactionDao(db);
-  final transactionRepository = TransactionRepositoryImpl(dao: transactionDao);
+
 
   final getTransactionsUseCase = GetAllTransactionsUseCase(transactionRepository);
   final getTransactionsByBankUseCase = GetTransactionsByBankIdUseCase(transactionRepository);
-  final addTransactionUseCase = CreateTransactionUseCase(transactionRepository);
+
   final updateTransactionUseCase = UpdateTransactionUseCase(transactionRepository);
   final deleteTransactionUseCase = DeleteTransactionUseCase(transactionRepository);
 
   final transactionController = TransactionController(
+    prefs: prefs,
     getAllTransactionsUseCase: getTransactionsUseCase,
     createTransactionUseCase: addTransactionUseCase,
     updateTransactionUseCase: updateTransactionUseCase,
     deleteTransactionUseCase: deleteTransactionUseCase,
+    getBanksUseCase: getBanksUseCase,
+    smsService: smsServices,
+    updateBankUseCase: updateBankUseCase
   );
   Get.put(transactionController);
 

@@ -1,27 +1,41 @@
+import 'dart:ui';
+
+import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get/get_core/src/get_main.dart';
+import 'package:logger/logger.dart';
 import '../../domain/entities/bank.dart';
 import '../controllers/bank_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_style.dart';
+import 'custom_textfield.dart';
 
 class BanksGrid extends StatefulWidget {
 
-  final VoidCallback onAddBank;
+
 
   const BanksGrid({
     Key? key,
 
-    required this.onAddBank,
+
   }) : super(key: key);
 
   @override
   _BanksGridState createState() => _BanksGridState();
 }
 
+
+
 class _BanksGridState extends State<BanksGrid> {
+
+  List<GlobalKey> bankItemKeys = [];
+
+  final _bankNameController = TextEditingController();
+  final _displayNameController = TextEditingController();
+  final _amount = TextEditingController();
   final BankController bankController = Get.find<BankController>();
+  final TransactionController transactionController = Get.find<TransactionController>();
   bool showAll = false;
   bool customSelectionMode = false;
 
@@ -40,20 +54,233 @@ class _BanksGridState extends State<BanksGrid> {
     const LinearGradient(colors: [Color(0xFF6A0DAD), Color(0xFF00CED1)], begin: Alignment.topLeft, end: Alignment.bottomRight), // purple → dark turquoise
   ];
 
-  final Set<int> selectedIndexes = {};
+
+  final logger = Logger();
 
   @override
   void initState() {
     super.initState();
+
     // Initially, all banks are selected
-    selectedIndexes.addAll(List.generate(bankController.banks.length, (index) => index));
+    bankController.selectedIndexes.addAll(List.generate(bankController.banks.length, (index) => index));
+
+
   }
 
+  @override
+  void dispose() {
+    _bankNameController.dispose();
+    _displayNameController.dispose();
+    super.dispose();
+  }
+
+
   void handleSelectAll(int total) {
-    selectedIndexes
+    bankController.selectedIndexes
       ..clear()
       ..addAll(List.generate(total, (i) => i));
     customSelectionMode = false;
+  }
+
+  void _showAddBankDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.background,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10), // smaller radius
+          ),
+          title: Text("Add Account", style: AppTextStyles.headline1,),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomTextField(controller: _bankNameController, hintText: "Bank Name", suffixIcon:Icons.info_outline, onSuffixPressed: (){
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: AppColors.background,
+                    title: Text("Bank Name Info", style: AppTextStyles.headline1,),
+                    content: Text(
+                        "Enter the bank or wallet name as it appears on messages.", style: AppTextStyles.body1),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child:  Text("OK", style: AppTextStyles.smallButton2),
+                      ),
+                    ],
+                  ),
+                );
+              },),
+              // Bank Name Field
+
+              const SizedBox(height: 16),
+
+
+
+              // Display Name Field
+              CustomTextField(controller: _displayNameController, hintText: "Display Name", suffixIcon:Icons.info_outline, onSuffixPressed: (){
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: AppColors.background,
+                    title:  Text("Display Name Info", style: AppTextStyles.headline1,),
+                    content: Text(
+                        "Enter a friendly name for the account.",style: AppTextStyles.body1 ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child:  Text("OK", style: AppTextStyles.smallButton2),
+                      ),
+                    ],
+                  ),
+                );
+              },),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text("Cancel", style: AppTextStyles.smallButton2),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final bankName = _bankNameController.text.trim();
+                String? displayName = _displayNameController.text.trim();
+
+                if (bankName.isEmpty) return; // Require bank name
+                if (displayName.isEmpty){
+                  displayName = null;
+                }
+                await bankController.addBank(bankName, displayName);
+
+
+                _bankNameController.clear();
+                _displayNameController.clear();
+
+                await transactionController.fetchSavedTransactions();
+
+                setState(() {
+                  bankController.selectedIndexes.clear();
+                  bankController.selectedIndexes.addAll(List.generate(bankController.banks.length, (index) => index));
+
+                });
+
+                Navigator.pop(context);
+              },
+              child:  Text("Add",style: AppTextStyles.smallButton1),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+
+  void _showEditBankDialog(Bank bank) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        _bankNameController.text = bank.bankName;
+        _displayNameController.text = bank.displayName ?? "";
+
+        return AlertDialog(
+          backgroundColor: AppColors.background,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10), // smaller radius
+          ),
+          title: Text("Update Account", style: AppTextStyles.headline1,),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomTextField(enable:false, controller: _bankNameController, hintText: "Bank Name", suffixIcon:Icons.info_outline, onSuffixPressed: (){
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: AppColors.background,
+                    title: Text("Bank Name Info", style: AppTextStyles.headline1,),
+                    content: Text(
+                        "Enter the bank or wallet name as it appears on messages.", style: AppTextStyles.body1),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child:  Text("OK", style: AppTextStyles.smallButton2),
+                      ),
+                    ],
+                  ),
+                );
+              },),
+              // Bank Name Field
+
+              const SizedBox(height: 16),
+
+
+
+              // Display Name Field
+              CustomTextField(controller: _displayNameController, hintText: "Display Name", suffixIcon:Icons.info_outline, onSuffixPressed: (){
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: AppColors.background,
+                    title:  Text("Display Name Info", style: AppTextStyles.headline1,),
+                    content: Text(
+                        "Enter a friendly name for the account.",style: AppTextStyles.body1 ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child:  Text("OK", style: AppTextStyles.smallButton2),
+                      ),
+                    ],
+                  ),
+                );
+              },),
+
+              const SizedBox(height: 16),
+
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text("Cancel", style: AppTextStyles.smallButton2),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final bankName = _bankNameController.text.trim();
+                String? displayName = _displayNameController.text.trim();
+
+                if (displayName.isEmpty){
+                  displayName = null;
+                }
+
+                    var editBank = Bank(userId: bank.userId,
+                        id: bank.id,
+                        displayName: displayName,
+                        bankName: bank.bankName,
+                        balance: bank.balance,
+                        createdAt: DateTime.now(),
+                        updatedAt: DateTime.now());
+                    bankController.editBank(editBank);
+
+
+
+
+
+
+
+                Navigator.pop(context);
+              },
+              child:  Text("Edit",style: AppTextStyles.smallButton1),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -61,8 +288,11 @@ class _BanksGridState extends State<BanksGrid> {
 
 
     return Obx(() {
-      final banks = bankController.banks;
 
+      logger.i("obx reloaded ${bankController.selectedIndexes}");
+
+      final banks = bankController.banks;
+      //selectedIndexes.addAll(List.generate(banks.length, (index) => index));
       final banksToShow = showAll
           ? banks
           : banks.length > 4
@@ -70,6 +300,11 @@ class _BanksGridState extends State<BanksGrid> {
           : banks;
 
       final canAddBank = banks.length < 12;
+
+      bankItemKeys = List.generate(
+        banksToShow.length,
+            (_) => GlobalKey(),
+      );
 
       return Column(
         children: [
@@ -85,36 +320,97 @@ class _BanksGridState extends State<BanksGrid> {
             itemCount: banksToShow.length + (canAddBank ? 1 : 0),
             itemBuilder: (context, index) {
               if (canAddBank && index == banksToShow.length) {
-                return AddBankItem(onTap: widget.onAddBank);
+                return AddBankItem(onTap: _showAddBankDialog);
               }
 
               final bank = banksToShow[index];
               final gradient = gradients[index % gradients.length];
-              final isSelected = selectedIndexes.contains(index);
+              final isSelected = bankController.selectedIndexes.contains(index);
+              final key = bankItemKeys[index];
 
               return GestureDetector(
+                key: key,
+                onLongPress: ()async{
+
+                  final renderBox = key.currentContext!.findRenderObject() as RenderBox;
+                  final position = renderBox.localToGlobal(Offset.zero);
+                  await showDialog(
+                    context: context,
+                    barrierColor: Colors.black26,
+                    builder: (_) {
+                      return Stack(
+                        children: [
+                          BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                            child: Container(color: Colors.transparent),
+                          ),
+
+                          Positioned(
+                            left: position.dx + renderBox.size.width - 150,
+                            top: position.dy,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: Container(
+                                width: 150,
+                                decoration: BoxDecoration(
+                                  color: AppColors.background,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ListTile(
+                                      leading: Icon(Icons.edit_outlined, color: Colors.white),
+                                      title: Text("Edit", style: AppTextStyles.body1),
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        _showEditBankDialog(banks[index]);
+
+                                      },
+                                    ),
+                                    ListTile(
+                                      leading: Icon(Icons.delete_outline, color: Colors.red),
+                                      title: Text("Delete", style: AppTextStyles.body1),
+                                      onTap: ()async {
+                                        Navigator.pop(context);
+                                        await bankController.removeBank(bank.id!);
+                                        transactionController.fetchSavedTransactions();
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                        ],
+                      );
+                    },
+                  );
+
+                },
                 onTap: () {
                   setState(() {
                     if (!customSelectionMode) {
-                      selectedIndexes
+                      bankController.selectedIndexes
                         ..clear()
                         ..add(index);
                       customSelectionMode = true;
                     } else {
                       if (isSelected) {
-                        selectedIndexes.remove(index);
+                        bankController.selectedIndexes.remove(index);
                       } else {
-                        selectedIndexes.add(index);
+                        bankController.selectedIndexes.add(index);
                       }
                     }
 
                     // ✅ If all selected manually, same as pressing “Select All”
-                    if (selectedIndexes.length == banks.length) {
+                    if (bankController.selectedIndexes.length == banks.length) {
                       handleSelectAll(banks.length);
                     }
                   });
                 },
                 child: BankItem(
+
                   bank: bank,
                   gradient: gradient,
                   isSelected: isSelected,
@@ -139,7 +435,7 @@ class _BanksGridState extends State<BanksGrid> {
                   ),
                 ),
               if (customSelectionMode &&
-                  (selectedIndexes.length < banks.length))
+                  (bankController.selectedIndexes.length < banks.length))
                 TextButton(
                   onPressed: () {
                     setState(() {
@@ -176,6 +472,7 @@ class BankItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
+      key:key,
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(

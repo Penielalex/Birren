@@ -145,4 +145,59 @@ class SmsService {
     return null;
   }
 
+  Future<List<Map<String, dynamic>>> fetchTransactionsForBank({
+    required String address,
+    required DateTime fromDate,
+  }) async {
+    List<Map<String, dynamic>> allTransactions = [];
+
+    try {
+      // Fetch SMS messages from the given address
+      List<SmsMessage> messages = await telephony.getInboxSms(
+        columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
+        filter: SmsFilter.where(SmsColumn.ADDRESS).equals(address),
+        sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
+      );
+
+      for (var msg in messages) {
+        final msgDate = DateTime.fromMillisecondsSinceEpoch(msg.date ?? 0);
+
+        // Skip messages older than fromDate
+        if (msgDate.isBefore(fromDate)) continue;
+
+        final transaction = parseBankSmsByBank(msg.address, msg.body);
+
+        // Only include if all required fields are non-null
+        if (transaction != null &&
+            transaction['transactionType'] != null &&
+            transaction['firstAmount'] != null &&
+            transaction['balanceAmount'] != null) {
+          allTransactions.add({
+            'transactionType': transaction['transactionType'],
+            'firstAmount': transaction['firstAmount'],
+            'balanceAmount': transaction['balanceAmount'],
+            'date': msgDate,
+            'address': msg.address,
+
+          });
+        }
+      }
+
+      // Sort transactions by date descending
+      allTransactions.sort(
+              (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+
+      // Debug log
+      for (var tr in allTransactions) {
+        logger.i(tr);
+      }
+    } catch (e, stack) {
+      logger.e("Error fetching transactions for address $address: $e");
+      logger.e(stack);
+    }
+
+    return allTransactions;
+  }
+
+
 }

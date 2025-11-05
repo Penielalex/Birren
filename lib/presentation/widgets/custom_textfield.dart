@@ -3,6 +3,7 @@ import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
 
 class CustomTextField extends StatelessWidget {
+  final bool? enable;
   final TextEditingController controller;
   final String hintText;
   final Color? cursorColor;
@@ -23,6 +24,7 @@ class CustomTextField extends StatelessWidget {
     Key? key,
     required this.controller,
     required this.hintText,
+    this.enable = true,
     this.cursorColor,
     this.textStyle,
     this.hintStyle,
@@ -52,6 +54,7 @@ class CustomTextField extends StatelessWidget {
       ),
       child: TextField(
         controller: controller,
+        enabled: enable,
         cursorColor: cursorColor ?? AppColors.accent,
         style: textStyle ?? AppTextStyles.body1,
         decoration: InputDecoration(

@@ -26,6 +26,7 @@ class BankRepositoryImpl implements BankRepository {
     try{
      await dao.insertBank(bank);
     }catch (e) {
+
       // Convert to domain error
       if (e.toString().contains('unique')) {
         throw Exception('You already have a bank with this name.');
