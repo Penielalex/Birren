@@ -16,12 +16,13 @@ final List<Category> incomeCategories = [
   Category(name: 'Savings/Investment', icon: Icons.savings, color: Colors.teal),
   Category(name: 'Other', icon: Icons.more_horiz, color: Colors.yellow),
   Category(name: 'Non-categorized', icon: Icons.help_outline, color: Colors.grey),
+  Category(name: 'Internal Transfer', icon: Icons.compare_arrows_outlined, color: Color(0XFF016B3C))
 ];
 
 // Spending Categories
 final List<Category> expenseCategories = [
-  Category(name: 'Groceries', icon: Icons.shopping_bag, color: Colors.orange),
-  Category(name: 'Restaurants', icon: Icons.restaurant, color: Colors.red),
+  Category(name: 'Groceries', icon: Icons.shopping_cart_outlined, color: Colors.orange),
+  Category(name: 'Restaurants', icon: Icons.fastfood_outlined, color: Colors.red),
   Category(name: 'Fuel', icon: Icons.local_gas_station, color: Colors.deepPurple),
   Category(name: 'Taxi', icon: Icons.directions_bus, color: Colors.lightBlue),
   Category(name: 'Ride', icon: Icons.local_taxi, color: Colors.blueAccent),
@@ -43,4 +44,6 @@ final List<Category> expenseCategories = [
   Category(name: 'Phone Bill', icon: Icons.phone, color: Color(0XFF898BD5)),
   Category(name: 'Shopping', icon: Icons.shopping_bag, color: Color(0XFFFEA7A7)),
   Category(name: 'Entertainment', icon: Icons.movie_creation_outlined, color: Color(0XFFFFF9C9)),
+  Category(name: 'Internal Transfer', icon: Icons.compare_arrows_outlined, color: Color(0XFF016B3C)),
+
 ];

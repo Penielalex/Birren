@@ -115,12 +115,14 @@ void main() async {
   final limitRepository = LimitRepositoryImpl(dao: limitDao);
 
   final getLimitsUseCase = GetAllLimitsUseCase(limitRepository);
-  final getLimitsByUserUseCase = GetLimitsByUserIdUseCase(limitRepository);
+  final getLimitByUserUseCase = GetLimitByUserIdUseCase(limitRepository);
   final addLimitUseCase = CreateLimitUseCase(limitRepository);
   final updateLimitUseCase = UpdateLimitUseCase(limitRepository);
   final deleteLimitUseCase = DeleteLimitUseCase(limitRepository);
 
   final limitController = LimitController(
+    prefs: prefs,
+    getLimitByUserIdUseCase: getLimitByUserUseCase,
     getAllLimitsUseCase: getLimitsUseCase,
     createLimitUseCase: addLimitUseCase,
     updateLimitUseCase: updateLimitUseCase,

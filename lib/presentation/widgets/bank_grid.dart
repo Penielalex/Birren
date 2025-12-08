@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:birren/presentation/controllers/transaction_controller.dart';
+import 'package:birren/presentation/widgets/custom_dropdown.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get/get_core/src/get_main.dart';
@@ -31,7 +32,13 @@ class _BanksGridState extends State<BanksGrid> {
 
   List<GlobalKey> bankItemKeys = [];
 
-  final _bankNameController = TextEditingController();
+  String selectedBank = "";
+  final List<String> bankNamesAll = [
+    "BOA",
+    "CBE",
+    "127",
+    "MPESA"
+  ];
   final _displayNameController = TextEditingController();
   final _amount = TextEditingController();
   final BankController bankController = Get.find<BankController>();
@@ -69,7 +76,7 @@ class _BanksGridState extends State<BanksGrid> {
 
   @override
   void dispose() {
-    _bankNameController.dispose();
+    selectedBank ="";
     _displayNameController.dispose();
     super.dispose();
   }
@@ -95,22 +102,11 @@ class _BanksGridState extends State<BanksGrid> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CustomTextField(controller: _bankNameController, hintText: "Bank Name", suffixIcon:Icons.info_outline, onSuffixPressed: (){
-                showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor: AppColors.background,
-                    title: Text("Bank Name Info", style: AppTextStyles.headline1,),
-                    content: Text(
-                        "Enter the bank or wallet name as it appears on messages.", style: AppTextStyles.body1),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child:  Text("OK", style: AppTextStyles.smallButton2),
-                      ),
-                    ],
-                  ),
-                );
+              CustomDropdown(value: selectedBank,hint:"Bank Name", items: bankNamesAll, onChanged: (value) {
+                setState(() {
+                  selectedBank = value!;
+
+                });
               },),
               // Bank Name Field
 
@@ -147,7 +143,7 @@ class _BanksGridState extends State<BanksGrid> {
             ),
             ElevatedButton(
               onPressed: () async {
-                final bankName = _bankNameController.text.trim();
+                final bankName = selectedBank;
                 String? displayName = _displayNameController.text.trim();
 
                 if (bankName.isEmpty) return; // Require bank name
@@ -157,7 +153,7 @@ class _BanksGridState extends State<BanksGrid> {
                 await bankController.addBank(bankName, displayName);
 
 
-                _bankNameController.clear();
+                selectedBank ="";
                 _displayNameController.clear();
 
                 await transactionController.fetchSavedTransactions();
@@ -184,7 +180,7 @@ class _BanksGridState extends State<BanksGrid> {
     showDialog(
       context: context,
       builder: (context) {
-        _bankNameController.text = bank.bankName;
+        selectedBank = bank.bankName;
         _displayNameController.text = bank.displayName ?? "";
 
         return AlertDialog(
@@ -196,22 +192,11 @@ class _BanksGridState extends State<BanksGrid> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CustomTextField(enable:false, controller: _bankNameController, hintText: "Bank Name", suffixIcon:Icons.info_outline, onSuffixPressed: (){
-                showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor: AppColors.background,
-                    title: Text("Bank Name Info", style: AppTextStyles.headline1,),
-                    content: Text(
-                        "Enter the bank or wallet name as it appears on messages.", style: AppTextStyles.body1),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child:  Text("OK", style: AppTextStyles.smallButton2),
-                      ),
-                    ],
-                  ),
-                );
+              CustomDropdown(isEnabled: false, value: selectedBank, hint:"Bank Name", items: bankNamesAll, onChanged: (value) {
+                setState(() {
+                  selectedBank = value!;
+
+                });
               },),
               // Bank Name Field
 
@@ -251,7 +236,7 @@ class _BanksGridState extends State<BanksGrid> {
             ),
             ElevatedButton(
               onPressed: () async {
-                final bankName = _bankNameController.text.trim();
+                final bankName = selectedBank;
                 String? displayName = _displayNameController.text.trim();
 
                 if (displayName.isEmpty){

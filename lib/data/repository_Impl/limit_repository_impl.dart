@@ -13,7 +13,7 @@ class LimitRepositoryImpl implements LimitRepository {
   Future<List<Limit>> getAllLimits() => dao.getAllLimits();
 
   @override
-  Future<List<Limit>> getLimitsByUserId(int userId) => dao.getLimitsByUserId(userId);
+  Future<Limit?> getLimitByUserId(int userId) => dao.getLimitByUserId(userId);
 
   @override
   Future<void> createLimit(Limit limit) =>

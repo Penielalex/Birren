@@ -1,6 +1,7 @@
 import 'package:birren/data/service/sms_service.dart';
 import 'package:birren/presentation/controllers/bank_controller.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:logger/logger.dart';
 import '../../app/bank_usecases.dart';
@@ -194,4 +195,56 @@ class TransactionController extends GetxController {
     await deleteTransactionUseCase.execute(id);
     await fetchSavedTransactions();
   }
+
+
+  /// Generates monthly indicators for the calendar.
+  /// Only considers 'Expense' transactions.
+  /// dailyLimit: limit per day to determine red/green
+  Map<DateTime, Color> getMonthlyIndicators({required double dailyLimit, required DateTime month}) {
+    Map<DateTime, double> dailySums = {};
+    final firstDayOfMonth = DateTime(month.year, month.month, 1);
+    final lastDayOfMonth = DateTime(month.year, month.month + 1, 0); // last day
+
+    // 1️⃣ Group expense amounts by day
+    for (var t in transactions) {
+      if (t.type != "Expense") continue;
+      if (t.dateOf.isBefore(firstDayOfMonth) || t.dateOf.isAfter(lastDayOfMonth)) continue;
+
+      final day = DateTime(t.dateOf.year, t.dateOf.month, t.dateOf.day);
+      dailySums[day] = (dailySums[day] ?? 0) + t.amount;
+    }
+
+    // 2️⃣ Map to colors
+    Map<DateTime, Color> indicators = {};
+    dailySums.forEach((day, sum) {
+      indicators[day] = sum > dailyLimit ? Colors.red : Colors.green;
+    });
+
+    return indicators;
+  }
+
+  /// Generates yearly indicators for the calendar.
+  /// Only considers 'Expense' transactions.
+  /// monthlyLimit: limit per month to determine red/green
+  Map<int, Color> getYearlyIndicators({required double monthlyLimit, required int year}) {
+    Map<int, double> monthlySums = {};
+
+    // 1️⃣ Group expense amounts by month
+    for (var t in transactions) {
+      if (t.type != "Expense") continue;
+      if (t.dateOf.year != year) continue;
+
+      final month = t.dateOf.month;
+      monthlySums[month] = (monthlySums[month] ?? 0) + t.amount;
+    }
+
+    // 2️⃣ Map to colors
+    Map<int, Color> indicators = {};
+    monthlySums.forEach((month, sum) {
+      indicators[month] = sum > monthlyLimit ? Colors.red : Colors.green;
+    });
+
+    return indicators;
+  }
+
 }

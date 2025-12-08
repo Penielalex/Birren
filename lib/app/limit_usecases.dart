@@ -8,11 +8,11 @@ class GetAllLimitsUseCase {
   Future<List<Limit>> execute() async => await repository.getAllLimits();
 }
 
-class GetLimitsByUserIdUseCase {
+class GetLimitByUserIdUseCase {
   final LimitRepository repository;
-  GetLimitsByUserIdUseCase(this.repository);
+  GetLimitByUserIdUseCase(this.repository);
 
-  Future<List<Limit>> execute(int userId) async => await repository.getLimitsByUserId(userId);
+  Future<Limit?> execute(int userId) async => await repository.getLimitByUserId(userId);
 }
 
 class CreateLimitUseCase {

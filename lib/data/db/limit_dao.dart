@@ -26,9 +26,14 @@ class LimitDao extends DatabaseAccessor<AppDatabase> with _$LimitDaoMixin {
   }
 
   /// Fetch limits by user ID
-  Future<List<Limit>> getLimitsByUserId(int userId) async {
-    final result = await (select(limits)..where((l) => l.userId.equals(userId))).get();
-    return result.map((row) => Limit(
+  Future<Limit?> getLimitByUserId(int userId) async {
+    final row = await (select(limits)
+      ..where((l) => l.userId.equals(userId)))
+        .getSingleOrNull();
+
+    if (row == null) return null;
+
+    return Limit(
       id: row.id,
       userId: row.userId,
       type: row.type,
@@ -37,8 +42,9 @@ class LimitDao extends DatabaseAccessor<AppDatabase> with _$LimitDaoMixin {
       monthStartType: row.monthStartType,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-    )).toList();
+    );
   }
+
 
   /// Insert a new limit
   Future<void> insertLimit(Limit limit) async {

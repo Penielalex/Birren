@@ -1,5 +1,6 @@
 import 'package:birren/presentation/controllers/user_controller.dart';
 import 'package:birren/presentation/pages/accounts_page.dart';
+import 'package:birren/presentation/pages/my_money_page.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
 import 'package:birren/presentation/widgets/custom_appbar.dart';
@@ -40,7 +41,7 @@ class HomePage extends StatelessWidget {
                 return AccountsPage();
               } else {
                 // --- My Money Tab Content ---
-                return _myMoneyTab();
+                return MyMoneyPage();
               }
             }),
           ),
@@ -89,105 +90,7 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  Widget _homeTab() {
-    return Column(
-      children: [
-        Padding(
-          padding: EdgeInsets.all(8),
-          child: Column(
-            children: [
-              TextField(controller: nameController, decoration: InputDecoration(hintText: 'Name')),
-              SizedBox(height: 8),
-              TextField(controller: emailController, decoration: InputDecoration(hintText: 'Email (optional)')),
-              SizedBox(height: 8),
-              TextField(controller: googleIdController, decoration: InputDecoration(hintText: 'Google ID (optional)')),
-              SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () {
-                  controller.createUser(
-                    name: nameController.text,
-                    email: emailController.text.isEmpty ? null : emailController.text,
-                    googleId: googleIdController.text.isEmpty ? null : googleIdController.text,
-                  );
-                  nameController.clear();
-                  emailController.clear();
-                  googleIdController.clear();
-                },
-                child: Text('Add User'),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Obx(() {
-            if (controller.isLoading.value) return Center(child: CircularProgressIndicator());
-            if (controller.users.isEmpty) return Center(child: Text('No users found.'));
 
-            return ListView.builder(
-              itemCount: controller.users.length,
-              itemBuilder: (context, index) {
-                final user = controller.users[index];
-                return ListTile(
-                  title: Text(user.name),
-                  subtitle: Text('${user.email ?? '-'} | ${user.googleId ?? '-'}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.edit),
-                        onPressed: () {
-                          final nameEditController = TextEditingController(text: user.name);
-                          final emailEditController = TextEditingController(text: user.email);
-                          final googleIdEditController = TextEditingController(text: user.googleId);
 
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              title: Text('Edit User'),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  TextField(controller: nameEditController, decoration: InputDecoration(labelText: 'Name')),
-                                  TextField(controller: emailEditController, decoration: InputDecoration(labelText: 'Email')),
-                                  TextField(controller: googleIdEditController, decoration: InputDecoration(labelText: 'Google ID')),
-                                ],
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    controller.editUser(
-                                      id: user.id!,
-                                      name: nameEditController.text,
-                                      email: emailEditController.text.isEmpty ? null : emailEditController.text,
-                                      googleId: googleIdEditController.text.isEmpty ? null : googleIdEditController.text,
-                                    );
-                                    Navigator.pop(context);
-                                  },
-                                  child: Text('Save'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete),
-                        onPressed: () => controller.removeUser(user.id!),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          }),
-        ),
-      ],
-    );
-  }
 
-  Widget _myMoneyTab() {
-    return Center(
-      child: Text('My Money Page', style: TextStyle(fontSize: 24)),
-    );
-  }
 }

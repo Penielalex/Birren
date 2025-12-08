@@ -121,6 +121,19 @@ class SmsService {
           firstAmount = double.tryParse(firstMatchMpesa.group(1)!.replaceAll(',', ''));
         }
 
+        // Extra fee: look for transaction fee or Fee
+        final feeRegExp = RegExp(r'(?:transaction fee|fee)\s*[:\-]?\s*([\d,]+\.?\d*)\s*birr', caseSensitive: false);
+        final feeMatch = feeRegExp.firstMatch(body);
+        double feeAmount = 0;
+        if (feeMatch != null) {
+          feeAmount = double.tryParse(feeMatch.group(1)!.replaceAll(',', '')) ?? 0;
+        }
+
+        // Add fee to first amount if exists
+        if (firstAmount != null) {
+          firstAmount += feeAmount;
+        }
+
         // Balance amount: after "balance is" and before "Birr"
         final balanceRegExpMpesa = RegExp(r'balance is\s*:?\s*([\d,]+\.?\d*)\s*birr', caseSensitive: false);
         final balanceMatchMpesa = balanceRegExpMpesa.firstMatch(body);

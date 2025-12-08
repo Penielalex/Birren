@@ -38,6 +38,8 @@ class Transactions extends Table {
   TextColumn get category => text()();
   TextColumn get type => text()(); // income/expense
   RealColumn get amount => real()();
+  IntColumn get transferId =>
+      integer().nullable().customConstraint('NULL REFERENCES transactions(id)')();
   DateTimeColumn get dateOf => dateTime()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();

@@ -36,36 +36,47 @@ class _AccountsPageState extends State<AccountsPage> {
   var selectedFilter="This Month";
 
 
+  late Worker _addingBankWorker;
+  late Worker _loadingTxnWorker;
+
   @override
   void initState() {
     super.initState();
 
-    ever(bankController.isAddingBank, (bool isAdding) {
+    _addingBankWorker = ever(bankController.isAddingBank, (bool isAdding) {
+      if (!mounted) return; // ✅ SAFETY
+
       if (isAdding) {
         Future.delayed(Duration.zero, () {
-          _showAddingBankDialog();
+          if (mounted) _showAddingBankDialog();
         });
       } else {
-        // ✅ Close dialog safely
-        if (Navigator.canPop(context)) {
+        if (mounted && Navigator.canPop(context)) {
           Navigator.pop(context);
         }
       }
     });
 
-    ever(transactionController.isLoading, (bool isLoading) {
+    _loadingTxnWorker = ever(transactionController.isLoading, (bool isLoading) {
+      if (!mounted) return; // ✅ SAFETY
+
       if (isLoading) {
         Future.delayed(Duration.zero, () {
-          _showTransactionDialog();
+          if (mounted) _showTransactionDialog();
         });
       } else {
-        // ✅ Close dialog safely
-        if (Navigator.canPop(context)) {
+        if (mounted && Navigator.canPop(context)) {
           Navigator.pop(context);
         }
       }
     });
+  }
 
+  @override
+  void dispose() {
+    _addingBankWorker.dispose();
+    _loadingTxnWorker.dispose();
+    super.dispose();
   }
 
 
@@ -195,7 +206,7 @@ class _AccountsPageState extends State<AccountsPage> {
           onRefresh: () async {
             // 🔁 This function runs when user swipes down
             await transactionController.fetchMessageTransactions();
-            await bankController.fetchBanks();
+            bankController.fetchBanks();
           },
           child: SingleChildScrollView(
             //padding: const EdgeInsets.all(16.0),
