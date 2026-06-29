@@ -1,19 +1,20 @@
-import 'package:birren/domain/entities/limit.dart';
-import 'package:birren/presentation/controllers/limit_controller.dart';
+import 'package:birren/presentation/controllers/app_navigation_controller.dart';
+import 'package:birren/presentation/controllers/budget_controller.dart';
 import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:birren/presentation/theme/text_style.dart';
 import 'package:birren/presentation/widgets/app_snackbar.dart';
 import 'package:birren/presentation/widgets/custom_calander.dart';
-import 'package:birren/presentation/widgets/custom_textfield.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get/get_core/src/get_main.dart';
 import 'package:intl/intl.dart';
-import 'package:logger/logger.dart';
 
+import 'package:birren/presentation/pages/date_transactions_page.dart';
+import 'package:birren/presentation/pages/budget_line_item_transactions_page.dart';
 import '../theme/colors.dart';
-import '../widgets/custom_dropdown.dart';
-import '../widgets/limit_card.dart';
+import '../widgets/budget_card.dart';
+import '../widgets/budget_context_menu.dart';
+import '../widgets/budget_line_item_row.dart';
+import '../widgets/create_budget_dialog.dart';
 
 class MyMoneyPage extends StatefulWidget {
   const MyMoneyPage({super.key});
@@ -23,55 +24,126 @@ class MyMoneyPage extends StatefulWidget {
 }
 
 class _MyMoneyPageState extends State<MyMoneyPage> {
-  final TextEditingController _salaryDayController = TextEditingController();
-  final TextEditingController _amountController = TextEditingController();
+  final BudgetController budgetController = Get.find<BudgetController>();
+  final TransactionController transactionController =
+      Get.find<TransactionController>();
+  final GlobalKey _budgetCardKey = GlobalKey();
 
-  final LimitController limitController = Get.find<LimitController>();
-  final TransactionController transactionController = Get.find<TransactionController>();
+  DateTime _viewDate = DateTime.now();
 
-  String _selectedMonthType = "";
+  @override
+  void initState() {
+    super.initState();
+    if (Get.isRegistered<AppNavigationController>()) {
+      final navigationController = Get.find<AppNavigationController>();
+      ever(navigationController.pendingCreateBudget, (pending) {
+        if (pending && mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _openCreateBudgetFromWidget(navigationController);
+          });
+        }
+      });
+      if (navigationController.pendingCreateBudget.value) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _openCreateBudgetFromWidget(navigationController);
+        });
+      }
+    }
+  }
 
-  final List<String> monthTypes = [
-    "Start of the Month",
-    "Salary Day",
-  ];
-  final logger = Logger();
+  void _openCreateBudgetFromWidget(AppNavigationController navigationController) {
+    navigationController.consumeCreateBudgetRequest();
+    if (!budgetController.canStartNewBudgetCycle) {
+      AppSnackbar.showError(
+        'Finish the current budget period before starting a new one.',
+      );
+      return;
+    }
+    showCreateBudgetDialog(context);
+  }
 
-
+  DateTime _clampViewDate(
+    DateTime date,
+    DateTime periodStart,
+    DateTime periodEnd,
+  ) {
+    final day = DateTime(date.year, date.month, date.day);
+    final start = DateTime(
+      periodStart.year,
+      periodStart.month,
+      periodStart.day,
+    );
+    final end = DateTime(periodEnd.year, periodEnd.month, periodEnd.day);
+    if (day.isBefore(start)) return start;
+    if (day.isAfter(end)) return start;
+    return day;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
+        child: Obx(() {
+          final budget = budgetController.activeBudget.value;
+          final formatter = NumberFormat('#,##0.00');
+          final hasBudget = budget != null;
+          final periodStart = budgetController.periodStart;
+          final periodEnd = budgetController.periodEnd;
 
-        child: Obx((){
-      final result = limitController.limit.value;
-
-      final double dailyLimit = result?.amount ?? 0;
-
-      final now = DateTime.now();
-      final int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
-      final double monthlyLimit = dailyLimit * daysInMonth;
-
-      final int year = now.year;
-      final bool isLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-      final int daysInYear = isLeapYear ? 366 : 365;
-      final double yearlyLimit = dailyLimit * daysInYear;
-
-      final formatter = NumberFormat('#,##0.00');
-
-      final monthlyIndicators = transactionController.getMonthlyIndicators(
-        dailyLimit: dailyLimit,
-        month: DateTime(2025, 11),
-      );
-
-// For year 2025
-          final yearlyIndicators = transactionController.getYearlyIndicators(
-            monthlyLimit: monthlyLimit,
-            year: 2025,
+          final totalAllocated = budgetController.totalAllocated;
+          final totalSpent = budgetController.totalSpent(
+            transactionController.transactions,
           );
+          final totalIncome = budgetController.incomeTotal(
+            transactionController.transactions,
+          );
+          final remaining = totalAllocated - totalSpent;
 
+          final dailyAllowance = budgetController.dailyBudgetAllowance;
+          final budgetLineItemIds = hasBudget
+              ? budgetController.activeBudgetLineItemIds
+              : null;
+
+          final monthlyIndicators = hasBudget
+              ? transactionController.getMonthlyIndicators(
+                  dailyLimit: dailyAllowance,
+                  month: _viewDate,
+                  periodStart: periodStart,
+                  periodEnd: periodEnd,
+                  budgetLineItemIds: budgetLineItemIds,
+                )
+              : <DateTime, Color>{};
+
+          final yearlyIndicators = hasBudget
+              ? transactionController.getYearlyIndicators(
+                  year: _viewDate.year,
+                  periodStart: periodStart,
+                  periodEnd: periodEnd,
+                  budgetLineItemIds: budgetLineItemIds,
+                  monthlyLimitFor: budgetController.monthlyAllowanceFor,
+                )
+              : <int, Color>{};
+
+          final lineItemRows = budget?.lineItems.map((item) {
+            final spent = budgetController.spentForLineItem(
+              item,
+              transactionController.transactions,
+            );
+            return BudgetLineItemRow(
+              name: item.name,
+              spent: spent,
+              allocated: item.allocatedAmount,
+              onTap: item.id == null
+                  ? null
+                  : () {
+                      Get.to(() => BudgetLineItemTransactionsPage(
+                            budget: budget!,
+                            lineItem: item,
+                          ));
+                    },
+            );
+          }).toList() ?? [];
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -79,222 +151,196 @@ class _MyMoneyPageState extends State<MyMoneyPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: LimitCard(
-                    dailyLimit: formatter.format(dailyLimit),
-                    monthLimit: formatter.format(monthlyLimit),
-                    yearlyLimit: formatter.format(yearlyLimit),
-                  onSetLimit:() {
-                    dailyLimit.toStringAsFixed(2) == "0.00"
-                        ? _showAddLimitDialog
-                        : _showEditLimitDialog(limitController.limit.value); //_showSetLimitDialog(selectedMonthType: limitController.limit.value?.monthStartType,salaryDay: "${limitController.limit.value?.monthStartDay}", amount:"${limitController.limit.value?.amount}");
-                  }
+                child: GestureDetector(
+                  key: _budgetCardKey,
+                  onLongPress: hasBudget && budget?.id != null
+                      ? () {
+                          final activeBudget = budget!;
+                          showBudgetContextMenu(
+                            context: context,
+                            anchorKey: _budgetCardKey,
+                            onEdit: () =>
+                                showEditBudgetDialog(context, activeBudget),
+                            onDelete: () => budgetController
+                                .deleteBudget(activeBudget.id!),
+                          );
+                        }
+                      : null,
+                  child: BudgetCard(
+                    budgetName: budget?.name ?? '',
+                    dateRange: hasBudget
+                        ? '${DateFormat.yMMMd().format(budget!.startDate)} – '
+                            '${DateFormat.yMMMd().format(budget.endDate)}'
+                        : '',
+                    totalBudget: '${formatter.format(totalAllocated)} birr',
+                    totalSpent: '${formatter.format(totalSpent)} birr',
+                    remaining: '${formatter.format(remaining)} birr',
+                    isExpired: budget?.isExpired ?? false,
+                    hasBudget: hasBudget,
+                    lineItemRows: lineItemRows,
+                    onCreateBudget: () {
+                      if (!budgetController.canStartNewBudgetCycle) {
+                        AppSnackbar.showError(
+                          'Finish the current budget period before starting a new one.',
+                        );
+                        return;
+                      }
+                      showCreateBudgetDialog(context);
+                    },
+                  ),
                 ),
-
               ),
               CustomCalendar(
+                key: ValueKey(budget?.id ?? 'no-budget'),
                 initialMode: CalendarMode.monthly,
-                initialDate: DateTime.now(),
+                initialDate: hasBudget && periodStart != null
+                    ? _clampViewDate(_viewDate, periodStart!, periodEnd!)
+                    : _viewDate,
+                periodStart: periodStart,
+                periodEnd: periodEnd,
                 monthlyIndicators: monthlyIndicators,
-                yearlyIndicators: yearlyIndicators
-              )
-
+                yearlyIndicators: yearlyIndicators,
+                startDay: hasBudget && periodStart != null
+                    ? periodStart!.day
+                    : 1,
+                onDateChanged: (newDate) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() => _viewDate = newDate);
+                    }
+                  });
+                },
+                onDaySelected: (date) {
+                  Get.to(() => DateTransactionsPage(
+                        filterDate: date,
+                        isMonthlyView: false,
+                      ));
+                },
+                onMonthSelected: (month) {
+                  final drillDate = DateTime(_viewDate.year, month, 1);
+                  Get.to(() => DateTransactionsPage(
+                        filterDate: drillDate,
+                        isMonthlyView: true,
+                      ));
+                },
+              ),
+              if (hasBudget)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(
+                    'Budget period: ${DateFormat.yMMMd().format(budget!.startDate)} – '
+                    '${DateFormat.yMMMd().format(budget.endDate)}',
+                    style: AppTextStyles.body1.copyWith(fontSize: 13),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Create a budget to track spending for a custom date range.',
+                    style: AppTextStyles.body1,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Card(
+                        color: const Color(0xFF262450),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.account_balance_wallet_outlined,
+                                  color: AppColors.accent, size: 20),
+                              const SizedBox(height: 8),
+                              Text('Budget', style: AppTextStyles.body2),
+                              const SizedBox(height: 4),
+                              Text(
+                                hasBudget
+                                    ? '${formatter.format(totalSpent)} / ${formatter.format(totalAllocated)} Birr'
+                                    : '—',
+                                style: AppTextStyles.headline1
+                                    .copyWith(fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Card(
+                        color: const Color(0xFF262450),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.arrow_downward,
+                                  color: Colors.green, size: 20),
+                              const SizedBox(height: 8),
+                              Text('Income', style: AppTextStyles.body2),
+                              const SizedBox(height: 4),
+                              Text(
+                                hasBudget
+                                    ? '${formatter.format(totalIncome)} Birr'
+                                    : '—',
+                                style: AppTextStyles.headline1
+                                    .copyWith(fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Card(
+                        color: const Color(0xFF262450),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.arrow_upward,
+                                  color: Colors.red, size: 20),
+                              const SizedBox(height: 8),
+                              Text('Expense', style: AppTextStyles.body2),
+                              const SizedBox(height: 4),
+                              Text(
+                                hasBudget
+                                    ? '${formatter.format(totalSpent)} Birr'
+                                    : '—',
+                                style: AppTextStyles.headline1
+                                    .copyWith(fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
             ],
-          );}
-        ),
+          );
+        }),
       ),
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // ✅ SET LIMIT DIALOG
-  // ---------------------------------------------------------------------------
-  void _showAddLimitDialog() {
-    final TextEditingController amountController = TextEditingController();
-    final TextEditingController salaryController = TextEditingController();
-    String selectedMonthType = "";
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: AppColors.background,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: StatefulBuilder(
-            builder: (context, setStateDialog) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Set Limit", style: AppTextStyles.headline1),
-                  const SizedBox(height: 16),
-                  CustomDropdown(
-                    value: selectedMonthType,
-                    hint: "Choose When Month Starts",
-                    items: ["Start of the Month", "Salary Day"],
-                    onChanged: (value) => setStateDialog(() => selectedMonthType = value!),
-                  ),
-                  const SizedBox(height: 16),
-                  if (selectedMonthType == "Salary Day") ...[
-                    CustomTextField(
-                      controller: salaryController,
-                      hintText: "Salary Day (1 - 31)",
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  CustomTextField(
-                    controller: amountController,
-                    hintText: "Daily spending limit",
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text("Cancel", style: AppTextStyles.smallButton2),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () {
-                          double amount = double.tryParse(amountController.text) ?? 0;
-                          if (amount <= 0 || selectedMonthType.isEmpty) {
-                            AppSnackbar.showError("Please fill out each field correctly");
-                            return;
-                          }
-
-                          final limit = Limit(
-                            userId: 1,
-                            type: "daily",
-                            amount: amount,
-                            monthStartDay: selectedMonthType == "Salary Day"
-                                ? int.parse(salaryController.text)
-                                : 1,
-                            monthStartType: selectedMonthType,
-                            createdAt: DateTime.now(),
-                            updatedAt: DateTime.now(),
-                          );
-
-                          limitController.addLimit(limit);
-                          Navigator.pop(context);
-                        },
-                        child: Text("Set", style: AppTextStyles.smallButton1),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showEditLimitDialog(Limit? existingLimit) {
-    final TextEditingController amountController =
-    TextEditingController(text: existingLimit?.amount.toString());
-    final TextEditingController salaryController =
-    TextEditingController(text: existingLimit?.monthStartDay.toString());
-    String selectedMonthType = existingLimit!.monthStartType;
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: AppColors.background,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: StatefulBuilder(
-            builder: (context, setStateDialog) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Edit Limit", style: AppTextStyles.headline1),
-                  const SizedBox(height: 16),
-                  CustomDropdown(
-                    value: selectedMonthType,
-                    hint: selectedMonthType.isEmpty
-                        ? "Choose When Month Starts"
-                        : selectedMonthType,
-                    items: ["Start of the Month", "Salary Day"],
-                    onChanged: (value) => setStateDialog(() => selectedMonthType = value!),
-                  ),
-                  const SizedBox(height: 16),
-                  if (selectedMonthType == "Salary Day") ...[
-                    CustomTextField(
-                      controller: salaryController,
-                      hintText: "Salary Day (1 - 31)",
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  CustomTextField(
-                    controller: amountController,
-                    hintText: "Daily spending limit",
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text("Cancel", style: AppTextStyles.smallButton2),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () {
-                          double amount = double.tryParse(amountController.text) ?? 0;
-                          if (amount <= 0 || selectedMonthType.isEmpty) {
-                            AppSnackbar.showError("Please fill out each field correctly");
-                            return;
-                          }
-
-                          final updatedLimit = Limit(
-                            userId: existingLimit!.userId,
-                            id: existingLimit.id,
-                            type: "daily",
-                            amount: amount,
-                            monthStartDay: selectedMonthType == "Salary Day"
-                                ? int.parse(salaryController.text)
-                                : 1,
-                            monthStartType: selectedMonthType,
-                            createdAt: existingLimit.createdAt,
-                            updatedAt: DateTime.now(),
-                          );
-
-                          limitController.editLimit(updatedLimit, existingLimit.id);
-                          Navigator.pop(context);
-                        },
-                        child: Text("Save", style: AppTextStyles.smallButton1),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
-
-
-  void _resetDialogState() {
-    if (!mounted) return;  //  Prevent setState after dispose
-
-    setState(() {
-      _selectedMonthType = "";
-      _salaryDayController.clear();
-      _amountController.clear();
-    });
-  }
-
-
-
 }

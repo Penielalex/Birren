@@ -1,18 +1,16 @@
-import 'package:birren/data/db/app_database.dart';
-import 'package:birren/data/service/shared_prefs_service.dart';
 import 'package:birren/presentation/controllers/bank_controller.dart';
 import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:birren/presentation/theme/colors.dart';
-import 'package:birren/presentation/widgets/custom_textfield.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get/get_core/src/get_main.dart';
 import 'package:intl/intl.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 
 import '../../domain/entities/bank.dart';
 import '../theme/text_style.dart';
+import '../util/cash_bank.dart';
 import '../widgets/bank_grid.dart';
+import '../widgets/manual_cash_transaction_dialog.dart';
 import '../widgets/transaction_card.dart';
 import '../widgets/transaction_list.dart';
 
@@ -101,7 +99,7 @@ class _AccountsPageState extends State<AccountsPage> {
                 LoadingAnimationWidget.progressiveDots(color: AppColors.accent, size: 100),
                 const SizedBox(height: 16),
                 Text(
-                  'Loading transactions for the past three days.',
+                  'Importing transactions from your messages…',
                   style: AppTextStyles.body1.copyWith(
                     decoration: TextDecoration.none, // remove any underline
                   ),
@@ -199,6 +197,31 @@ class _AccountsPageState extends State<AccountsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: Obx(() {
+        Bank? selectedCash;
+        for (final index in bankController.selectedIndexes) {
+          if (index >= 0 && index < bankController.banks.length) {
+            final bank = bankController.banks[index];
+            if (isCashBankName(bank.bankName)) {
+              selectedCash = bank;
+              break;
+            }
+          }
+        }
+
+        if (selectedCash == null) {
+          return const SizedBox.shrink();
+        }
+
+        return FloatingActionButton(
+          backgroundColor: AppColors.accent,
+          onPressed: () => showManualCashTransactionDialog(
+            context,
+            selectedCash!,
+          ),
+          child: const Icon(Icons.add, color: Colors.white),
+        );
+      }),
       body: bankController.isLoading.value ? Center(child: LoadingAnimationWidget.inkDrop(color: AppColors.accent, size: 25)): SafeArea(
         child: RefreshIndicator(
           color: AppColors.accent,
@@ -275,7 +298,7 @@ class _AccountsPageState extends State<AccountsPage> {
                                         if (snapshot.connectionState == ConnectionState.waiting) {
                                           return Text(
                                             "Last Fetched: loading...",
-                                            style: AppTextStyles.body1.copyWith(color: Colors.grey, fontSize: 9),
+                                            style: AppTextStyles.body1.copyWith(fontSize: 9),
                                           );
                                         }
 
@@ -285,7 +308,7 @@ class _AccountsPageState extends State<AccountsPage> {
                                           date == null
                                               ? "Last Fetched: No data"
                                               : "Last Fetched: ${DateFormat('yyyy-MM-dd HH:mm').format(date)}",
-                                          style: AppTextStyles.body1.copyWith(color: Colors.grey, fontSize: 9),
+                          style: AppTextStyles.body1.copyWith(fontSize: 9),
                                         );
                                       },
                                     )

@@ -6,9 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get/get_core/src/get_main.dart';
 import 'package:intl/intl.dart';
-import 'package:logger/logger.dart';
+import 'package:birren/core/app_logger.dart';
 
-import '../../domain/entities/transaction.dart'; // Adjust the import path
+import '../../domain/entities/transaction.dart';
+import '../pages/transaction_detail_page.dart';
 import '../controllers/bank_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_style.dart';
@@ -30,7 +31,7 @@ class _TransactionCardState extends State<TransactionCard> {
 
   final BankController bankController = Get.find<BankController>();
   final TransactionController transactionController =Get.find<TransactionController>();
-  final logger = Logger();
+  final logger = appLogger;
   @override
   Widget build(BuildContext context) {
     // Choose icon based on transaction type
@@ -38,24 +39,35 @@ class _TransactionCardState extends State<TransactionCard> {
     Color circleColor;
     String value;
 
-    var categoryIndex= int.parse(widget.transaction.category);
-
+    if (transactionHasNoCategory(widget.transaction.category)) {
+      icon = Icons.help_outline;
+      circleColor = Colors.grey;
+    } else {
+      final categoryIndex = int.parse(widget.transaction.category);
+      switch (widget.transaction.type) {
+        case "Income":
+          icon = incomeCategories[categoryIndex].icon;
+          circleColor = incomeCategories[categoryIndex].color;
+          break;
+        case "Expense":
+          icon = expenseCategories[categoryIndex].icon;
+          circleColor = expenseCategories[categoryIndex].color;
+          break;
+        default:
+          icon = Icons.swap_horiz;
+          circleColor = Colors.grey;
+      }
+    }
 
     switch (widget.transaction.type) {
       case "Income":
-        icon = incomeCategories[categoryIndex].icon;
-        circleColor = incomeCategories[categoryIndex].color;
         value = "+";
         break;
       case "Expense":
-        icon = expenseCategories[categoryIndex].icon;
-        circleColor = expenseCategories[categoryIndex].color;
-        value ="-";
+        value = "-";
         break;
       default:
-        icon = Icons.swap_horiz;
-        circleColor = Colors.grey;
-        value ="";
+        value = "";
     }
 
     final formattedAmount = NumberFormat('#,##0.00').format(widget.transaction.amount);
@@ -66,7 +78,9 @@ class _TransactionCardState extends State<TransactionCard> {
       orElse: () => throw Exception("bank not found"),
     );
 
-
+    void openDetail() {
+      Get.to(() => TransactionDetailPage(transaction: widget.transaction));
+    }
 
     return Obx(() {
       bool isSelected = transactionController.selectedTransactionIds.contains(widget.transaction.id);
@@ -139,13 +153,15 @@ class _TransactionCardState extends State<TransactionCard> {
             }
           },
           onTap: () {
-            if(widget.fromNotification){
-            if (transactionController.selectedTransactionIds.isNotEmpty) {
-              // If selection mode is active, toggle this item
-              transactionController.toggleSelection(widget.transaction.id);
+            if (widget.fromNotification) {
+              if (transactionController.selectedTransactionIds.isNotEmpty) {
+                transactionController.toggleSelection(widget.transaction.id);
+              } else {
+                openDetail();
+              }
             } else {
-
-            }}
+              openDetail();
+            }
           },
           child: Padding(
             padding: const EdgeInsets.all(12.0),

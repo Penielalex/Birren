@@ -23,7 +23,7 @@ class AppTextStyles {
   static final button2 = GoogleFonts.poppins(
     fontSize: 16,
     fontWeight: FontWeight.w500,
-    color: AppColors.accent,
+    color: AppColors.textPrimary,
   );
 
   static final smallButton1 = GoogleFonts.poppins(
@@ -34,7 +34,7 @@ class AppTextStyles {
   static final smallButton2 = GoogleFonts.poppins(
     fontSize: 12,
     fontWeight: FontWeight.w500,
-    color: AppColors.accent,
+    color: AppColors.textPrimary,
   );
 
   static final body1 = GoogleFonts.poppins(
@@ -56,7 +56,7 @@ class AppTextStyles {
   static final body3 = GoogleFonts.poppins(
     fontSize: 12,
     fontWeight: FontWeight.normal,
-    color: Colors.grey,
+    color: AppColors.textPrimary,
   );
 
   static final midBody1 = GoogleFonts.poppins(
@@ -73,13 +73,12 @@ class AppTextStyles {
   static final midBody3 = GoogleFonts.poppins(
     fontSize: 14,
     fontWeight: FontWeight.w500,
-    color: Colors.grey,
+    color: AppColors.textPrimary,
   );
-
   static final hint = GoogleFonts.poppins(
     fontSize: 12,
     fontWeight: FontWeight.normal,
-    color: Colors.grey
+    color: AppColors.textPrimary,
   );
 
 }

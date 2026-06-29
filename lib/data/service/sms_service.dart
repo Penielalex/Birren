@@ -1,216 +1,509 @@
-import 'package:logger/logger.dart';
-import 'package:telephony/telephony.dart';
+import 'package:birren/core/app_logger.dart';
+
+import 'package:birren/data/models/sms_message_model.dart';
+
+import 'package:birren/data/service/sms_platform_service.dart';
+
+import 'package:birren/data/service/sms_regex_parser.dart';
+
+import 'package:birren/domain/entities/parsed_sms_transaction.dart';
+
 import 'package:permission_handler/permission_handler.dart';
 
+
+
 class SmsService {
-  final Telephony telephony = Telephony.instance;
-  final logger =Logger();
+
+  final SmsPlatformService smsPlatform;
+
+  final logger = appLogger;
+
+
+
+  static const _pageSize = 50;
+
+  static const initialTransactionCount = 5;
+
+
+
+  SmsService({
+
+    required this.smsPlatform,
+
+  });
+
+
 
   Future<bool> requestPermission() async {
+
     final status = await Permission.sms.request();
+
     return status.isGranted;
+
   }
 
-  Future<Map<String, dynamic>?>  fetchLastAmount({
-    required String sender,
-  }) async {
 
-   try{
-    List<SmsMessage> messages = await telephony.getInboxSms(
-      columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
-      filter: SmsFilter.where(SmsColumn.ADDRESS).equals(sender),
-      sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
-    );
 
-    // Iterate over messages to find the first one with a valid transaction
-    for (var msg in messages) {
-      final transaction = parseBankSmsByBank(msg.address, msg.body);
+  /// Logs raw SMS bodies for a bank — useful for building new regex patterns.
 
-      if (transaction != null) {
-        logger.i(transaction);
-        return transaction; // or return transaction if you prefer
-      }
-    } }catch(e, stack){
-     logger.e("Error fetching messages for $sender: $e");
-     logger.e(stack);
-     return null;
-   }
+  Future<void> logAllSmsForBank({
 
-    return null;
-  }
-
-  Map<String, dynamic>? parseBankSmsByBank(String? bank, String? body) {
-    String? transactionType;
-    double? firstAmount;
-    double? balanceAmount;
-
-    switch (bank?.toLowerCase()) {
-      case 'boa': // Bank of Abyssinia
-        final typesBOA = ['credited', 'debited'];
-        for (var type in typesBOA) {
-          if (body!.toLowerCase().contains(type)) {
-            transactionType = type;
-            break;
-          }
-        }
-        final firstAmountRegExpBOA = RegExp(r'ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
-        final firstMatchBOA = firstAmountRegExpBOA.firstMatch(body!);
-        if (firstMatchBOA != null) {
-          firstAmount = double.tryParse(firstMatchBOA.group(1)!.replaceAll(',', ''));
-        }
-        final balanceRegExpBOA = RegExp(r'Available Balance\s*:?\s*ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
-        final balanceMatchBOA = balanceRegExpBOA.firstMatch(body);
-        if (balanceMatchBOA != null) {
-          balanceAmount = double.tryParse(balanceMatchBOA.group(1)!.replaceAll(',', ''));
-        }
-        break;
-
-      case 'cbe': // Commercial Bank of Ethiopia
-        final typesCBE = ['credited', 'debited'];
-        for (var type in typesCBE) {
-          if (body!.toLowerCase().contains(type)) {
-            transactionType = type;
-            break;
-          }
-        }
-        final firstAmountRegExpCBE = RegExp(r'ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
-        final firstMatchCBE = firstAmountRegExpCBE.firstMatch(body!);
-        if (firstMatchCBE != null) {
-          firstAmount = double.tryParse(firstMatchCBE.group(1)!.replaceAll(',', ''));
-        }
-        final balanceRegExpCBE = RegExp(r'Current Balance is\s*:?\s*ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
-        final balanceMatchCBE = balanceRegExpCBE.firstMatch(body);
-        if (balanceMatchCBE != null) {
-          balanceAmount = double.tryParse(balanceMatchCBE.group(1)!.replaceAll(',', ''));
-        }
-        break;
-
-      case '127': // Bank 127
-        final types127 = ['transferred', 'recharged', 'paid', 'received'];
-        for (var type in types127) {
-          if (body!.toLowerCase().contains(type)) {
-            transactionType = type;
-            break;
-          }
-        }
-        final firstAmountRegExp127 = RegExp(r'ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
-        final firstMatch127 = firstAmountRegExp127.firstMatch(body!);
-        if (firstMatch127 != null) {
-          firstAmount = double.tryParse(firstMatch127.group(1)!.replaceAll(',', ''));
-        }
-        final balanceRegExp127 = RegExp(r'balance is\s*:?\s*ETB\s*([\d,]+\.?\d*)', caseSensitive: false);
-        final balanceMatch127 = balanceRegExp127.firstMatch(body);
-        if (balanceMatch127 != null) {
-          balanceAmount = double.tryParse(balanceMatch127.group(1)!.replaceAll(',', ''));
-        }
-        break;
-
-      case 'mpesa': // M-PESA
-        final typesMpesa = ['received', 'sent', 'bought', 'paid'];
-        for (var type in typesMpesa) {
-          if (body!.toLowerCase().contains(type)) {
-            transactionType = type;
-            break;
-          }
-        }
-
-        // First amount: number before "birr"
-        final firstAmountRegExpMpesa = RegExp(r'([\d,]+\.?\d*)\s*birr', caseSensitive: false);
-        final firstMatchMpesa = firstAmountRegExpMpesa.firstMatch(body!);
-        if (firstMatchMpesa != null) {
-          firstAmount = double.tryParse(firstMatchMpesa.group(1)!.replaceAll(',', ''));
-        }
-
-        // Extra fee: look for transaction fee or Fee
-        final feeRegExp = RegExp(r'(?:transaction fee|fee)\s*[:\-]?\s*([\d,]+\.?\d*)\s*birr', caseSensitive: false);
-        final feeMatch = feeRegExp.firstMatch(body);
-        double feeAmount = 0;
-        if (feeMatch != null) {
-          feeAmount = double.tryParse(feeMatch.group(1)!.replaceAll(',', '')) ?? 0;
-        }
-
-        // Add fee to first amount if exists
-        if (firstAmount != null) {
-          firstAmount += feeAmount;
-        }
-
-        // Balance amount: after "balance is" and before "Birr"
-        final balanceRegExpMpesa = RegExp(r'balance is\s*:?\s*([\d,]+\.?\d*)\s*birr', caseSensitive: false);
-        final balanceMatchMpesa = balanceRegExpMpesa.firstMatch(body);
-        if (balanceMatchMpesa != null) {
-          balanceAmount = double.tryParse(balanceMatchMpesa.group(1)!.replaceAll(',', ''));
-        }
-        break;
-
-      default:
-        print("Bank parser not implemented for $bank");
-    }
-
-    if (transactionType != null && firstAmount != null && balanceAmount != null) {
-      return {
-        'transactionType': transactionType,
-        'firstAmount': firstAmount,
-        'balanceAmount': balanceAmount,
-      };
-    }
-
-    // Return null if any of the three is null
-    return null;
-  }
-
-  Future<List<Map<String, dynamic>>> fetchTransactionsForBank({
     required String address,
-    required DateTime fromDate,
+
+    int limit = 50,
+
   }) async {
-    List<Map<String, dynamic>> allTransactions = [];
 
     try {
-      // Fetch SMS messages from the given address
-      List<SmsMessage> messages = await telephony.getInboxSms(
-        columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
-        filter: SmsFilter.where(SmsColumn.ADDRESS).equals(address),
-        sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
+
+      final messages = await smsPlatform.getSmsByDateRange(
+
+        startDate: DateTime(2000),
+
+        endDate: DateTime.now(),
+
+        sender: address,
+
+        limit: limit,
+
+        offset: 0,
+
       );
 
-      for (var msg in messages) {
-        final msgDate = DateTime.fromMillisecondsSinceEpoch(msg.date ?? 0);
 
-        // Skip messages older than fromDate
-        if (msgDate.isBefore(fromDate)) continue;
 
-        final transaction = parseBankSmsByBank(msg.address, msg.body);
+      logger.i('[SMS_DUMP] $address: ${messages.length} message(s)');
 
-        // Only include if all required fields are non-null
-        if (transaction != null &&
-            transaction['transactionType'] != null &&
-            transaction['firstAmount'] != null &&
-            transaction['balanceAmount'] != null) {
-          allTransactions.add({
-            'transactionType': transaction['transactionType'],
-            'firstAmount': transaction['firstAmount'],
-            'balanceAmount': transaction['balanceAmount'],
-            'date': msgDate,
-            'address': msg.address,
+      for (final msg in messages) {
 
-          });
-        }
+        logger.i('[SMS_DUMP][$address] ${msg.body}');
+
       }
 
-      // Sort transactions by date descending
-      allTransactions.sort(
-              (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+    } catch (e, stack) {
 
-      // Debug log
-      for (var tr in allTransactions) {
-        logger.i(tr);
+      logger.e('Failed to dump SMS for $address: $e');
+
+      logger.e(stack);
+
+    }
+
+  }
+
+
+
+  Future<Map<String, dynamic>?> fetchLastAmount({
+
+    required String sender,
+
+  }) async {
+
+    logger.i("fetching last amount for $sender");
+
+    try {
+
+      final msg = await smsPlatform.getLatestSms(sender: sender);
+
+      if (msg == null) {
+
+        logger.i("no messages found for $sender");
+
+        return null;
+
+      }
+
+
+
+      logger.i(msg.body);
+
+      final transaction = _parseSmsBody(msg.body, bank: sender);
+
+      if (transaction == null) {
+
+        logger.i("no transaction found in latest message for $sender");
+
+        return null;
+
+      }
+
+
+
+      return transaction.toSmsMap(
+
+        date: msg.date ?? DateTime.fromMillisecondsSinceEpoch(0),
+
+        address: msg.address,
+
+      );
+
+    } catch (e, stack) {
+
+      logger.e("Error fetching messages for $sender: $e");
+
+      logger.e(stack);
+
+      return null;
+
+    }
+
+  }
+
+
+
+  ParsedSmsTransaction? _parseSmsBody(
+
+    String? body, {
+
+    String? bank,
+
+  }) {
+
+    if (body == null || body.trim().isEmpty) {
+
+      logger.i("Parsing sms body is null or empty");
+
+      return null;
+
+    }
+
+
+
+    if (bank == null) {
+
+      logger.w('Cannot parse SMS without bank sender');
+
+      return null;
+
+    }
+
+
+
+    final parsed = SmsRegexParser.parse(bank: bank, body: body);
+
+    if (parsed != null && parsed.isActionable) {
+
+      logger.i(
+
+        'Parsed via regex: type=${parsed.transactionType} '
+
+        'amount=${parsed.amount} balance=${parsed.balance}',
+
+      );
+
+      return parsed;
+
+    }
+
+
+
+    logger.w('Regex parse failed for $bank: ${body.substring(0, body.length.clamp(0, 120))}...');
+
+    return null;
+
+  }
+
+
+
+  Future<List<Map<String, dynamic>>> fetchInitialTransactionsForBank({
+
+    required String address,
+
+    int count = initialTransactionCount,
+
+  }) async {
+
+    final results = <Map<String, dynamic>>[];
+
+    var offset = 0;
+
+
+
+    try {
+
+      while (results.length < count) {
+
+        final messages = await smsPlatform.getSmsByDateRange(
+
+          startDate: DateTime(2000),
+
+          endDate: DateTime.now(),
+
+          sender: address,
+
+          limit: _pageSize,
+
+          offset: offset,
+
+        );
+
+
+
+        if (messages.isEmpty) {
+
+          break;
+
+        }
+
+
+
+        for (final msg in messages) {
+
+          final transaction = _parseSmsBody(msg.body, bank: address);
+
+          if (transaction == null || !transaction.isActionable) {
+
+            continue;
+
+          }
+
+
+
+          results.add(transaction.toSmsMap(
+
+            date: msg.date ?? DateTime.fromMillisecondsSinceEpoch(0),
+
+            address: msg.address,
+
+          ));
+
+
+
+          if (results.length >= count) {
+
+            break;
+
+          }
+
+        }
+
+
+
+        if (messages.length < _pageSize) {
+
+          break;
+
+        }
+
+        offset += _pageSize;
+
+      }
+
+
+
+      results.sort(
+
+        (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime),
+
+      );
+
+
+
+      logger.i(
+
+        'Initial fetch for $address: ${results.length} actionable message(s)',
+
+      );
+
+    } catch (e, stack) {
+
+      logger.e('Error fetching initial transactions for $address: $e');
+
+      logger.e(stack);
+
+    }
+
+
+
+    return results;
+
+  }
+
+
+
+  Future<List<Map<String, dynamic>>> fetchTransactionsForBank({
+
+    required String address,
+
+    required DateTime fromDate,
+
+    bool exclusiveStart = false,
+
+  }) async {
+
+    final allTransactions = <Map<String, dynamic>>[];
+
+
+
+    try {
+
+      var offset = 0;
+
+      while (true) {
+
+        final messages = await smsPlatform.getSmsByDateRange(
+
+          startDate: fromDate,
+
+          endDate: DateTime.now(),
+
+          sender: address,
+
+          limit: _pageSize,
+
+          offset: offset,
+
+        );
+
+
+
+        if (messages.isEmpty) {
+
+          break;
+
+        }
+
+
+
+        for (final msg in messages) {
+
+          final msgDate = msg.date ?? DateTime.fromMillisecondsSinceEpoch(0);
+
+          if (exclusiveStart && !msgDate.isAfter(fromDate)) {
+
+            continue;
+
+          }
+
+
+
+          final transaction = _parseSmsBody(msg.body, bank: address);
+
+          if (transaction != null && transaction.isActionable) {
+
+            allTransactions.add(transaction.toSmsMap(
+
+              date: msgDate,
+
+              address: msg.address,
+
+            ));
+
+          }
+
+        }
+
+
+
+        if (messages.length < _pageSize) {
+
+          break;
+
+        }
+
+        offset += _pageSize;
+
+      }
+
+
+
+      allTransactions.sort(
+
+        (a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime),
+
+      );
+
+
+
+      for (final tr in allTransactions) {
+
+        logger.i(
+
+          'SMS transaction: type=${tr['transactionType']} '
+
+          'amount=${tr['firstAmount']} balance=${tr['balanceAmount']} '
+
+          'date=${tr['date']}',
+
+        );
+
+      }
+
+    } catch (e, stack) {
+
+      logger.e("Error fetching transactions for address $address: $e");
+
+      logger.e(stack);
+
+    }
+
+
+
+    return allTransactions;
+
+  }
+
+  /// Finds the inbox SMS that best matches a saved transaction.
+  Future<SmsMessageModel?> findSmsForTransaction({
+    required String bankAddress,
+    required DateTime dateOf,
+    required double amount,
+    required String type,
+  }) async {
+    final dayStart = DateTime(dateOf.year, dateOf.month, dateOf.day);
+    final dayEnd = DateTime(dateOf.year, dateOf.month, dateOf.day, 23, 59, 59, 999);
+
+    SmsMessageModel? bestMatch;
+    var bestScore = -1;
+
+    try {
+      var offset = 0;
+      while (true) {
+        final messages = await smsPlatform.getSmsByDateRange(
+          startDate: dayStart,
+          endDate: dayEnd,
+          sender: bankAddress,
+          limit: _pageSize,
+          offset: offset,
+        );
+
+        if (messages.isEmpty) break;
+
+        for (final msg in messages) {
+          final parsed = _parseSmsBody(msg.body, bank: bankAddress);
+          if (parsed == null || !parsed.isActionable) continue;
+
+          final msgType = parsed.transactionType == 'income'
+              ? 'Income'
+              : parsed.transactionType == 'withdrawal'
+                  ? 'Expense'
+                  : null;
+          if (msgType != type) continue;
+
+          final parsedAmount = parsed.amount ?? 0;
+          final amountDiff = (parsedAmount - amount).abs();
+          final msgDate = msg.date ?? dateOf;
+          final timeDiffSeconds = msgDate.difference(dateOf).inSeconds.abs();
+
+          final exactAmount = amountDiff < 0.01;
+          final score = (exactAmount ? 1000000 : 0) -
+              timeDiffSeconds -
+              (amountDiff * 100).round();
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = msg;
+          }
+        }
+
+        if (messages.length < _pageSize) break;
+        offset += _pageSize;
       }
     } catch (e, stack) {
-      logger.e("Error fetching transactions for address $address: $e");
+      logger.e('Error finding SMS for $bankAddress transaction: $e');
       logger.e(stack);
     }
 
-    return allTransactions;
+    return bestMatch;
   }
-
 
 }

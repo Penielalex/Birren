@@ -12,7 +12,7 @@ class AppColors {
 
   // Text
   static const Color textPrimary = Colors.white;
-  static const Color textSecondary = Colors.black;
+  static const Color textSecondary = Colors.white;
   //static const Color textLight = Colors.white;
 
   // Accent / Buttons

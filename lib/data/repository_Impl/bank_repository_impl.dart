@@ -1,4 +1,4 @@
-import 'package:logger/logger.dart';
+import 'package:birren/core/app_logger.dart';
 
 import '../../domain/entities/bank.dart';
 import '../../domain/repositories/bank_repository.dart';
@@ -9,7 +9,7 @@ class BankRepositoryImpl implements BankRepository {
 
   BankRepositoryImpl({required this.dao});
 
-  var logger =Logger();
+  var logger = appLogger;
 
   @override
   Future<List<Bank>> getBanks() async {

@@ -20,6 +20,8 @@ class CustomTextField extends StatelessWidget {
   // New optional suffix icon and callback
   final IconData? suffixIcon;
   final VoidCallback? onSuffixPressed;
+  final bool obscureText;
+  final ValueChanged<String>? onSubmitted;
 
   const CustomTextField({
     Key? key,
@@ -38,6 +40,8 @@ class CustomTextField extends StatelessWidget {
     this.shadowOffset = const Offset(0, 0),
     this.suffixIcon,
     this.onSuffixPressed,
+    this.obscureText = false,
+    this.onSubmitted,
   }) : super(key: key);
 
   @override
@@ -58,6 +62,8 @@ class CustomTextField extends StatelessWidget {
         keyboardType: keyboardType,
         controller: controller,
         enabled: enable,
+        obscureText: obscureText,
+        onSubmitted: onSubmitted,
         cursorColor: cursorColor ?? AppColors.accent,
         style: textStyle ?? AppTextStyles.body1,
         decoration: InputDecoration(

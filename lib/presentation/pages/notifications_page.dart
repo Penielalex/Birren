@@ -1,11 +1,14 @@
 import 'package:birren/presentation/widgets/app_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:logger/logger.dart';
+import 'package:birren/core/app_logger.dart';
 import '../controllers/transaction_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_style.dart';
 import '../util/category.dart';
+import '../widgets/internal_transfer_pair_dialog.dart';
+import '../widgets/budget_line_item_picker_dialog.dart';
+import '../widgets/loan_return_pair_dialog.dart';
 import '../widgets/transaction_card.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -18,7 +21,7 @@ class NotificationsPage extends StatefulWidget {
 
 class _NotificationsPageState extends State<NotificationsPage> {
   final TransactionController transactionController = Get.find<TransactionController>();
-  final logger = Logger();
+  final logger = appLogger;
 
   @override
   void dispose() {
@@ -110,7 +113,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
             return Center(
               child: Text(
                 "No notifications yet",
-                style: AppTextStyles.body1.copyWith(color: Colors.grey),
+                style: AppTextStyles.body1,
               ),
             );
           }
@@ -122,7 +125,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Text(
-                  "Please set categories for the transactions loaded from your messages.",
+                  "Please set categories for imported transactions. Expenses ask which budget item to deduct from, except Loan Repayment (tracked on Loans tab). Incoming Loan (income) registers borrowed money. Transfer Fee uses its budget item automatically.",
                   style: AppTextStyles.body1,
                 ),
               ),
@@ -191,22 +194,81 @@ void showCategoryDialog(BuildContext context, String type) {
 
                     return GestureDetector(
                       onTap: () async {
-                        // Update all selected transactions
-                        for (var txnId in transactionController.selectedTransactionIds) {
-                          await transactionController.editTransaction(
-                            txnId,
-                            null,
-                            "$index",
-                            null,
-                            null,
-                            null
-                          );
+                        final isInternalTransfer =
+                            (type == 'Income' &&
+                                index == incomeInternalTransferIndex) ||
+                            (type == 'Expense' &&
+                                index == expenseInternalTransferIndex);
+                        final isIncomingLoan =
+                            type == 'Income' && index == incomeLoanIndex;
+                        final isLoanRepayment =
+                            type == 'Expense' && index == expenseLoanIndex;
+
+                        if (isInternalTransfer) {
+                          if (transactionController
+                              .selectedTransactionIds.isEmpty) {
+                            AppSnackbar.showError(
+                              'Select a transaction first',
+                            );
+                            return;
+                          }
+
+                          final primaryId = transactionController
+                              .selectedTransactionIds.first;
+                          final primary = transactionController.transactions
+                              .firstWhere((t) => t.id == primaryId);
+
+                          Navigator.pop(context);
+                          showInternalTransferPairDialog(context, primary);
+                          return;
                         }
 
-                        // Clear selection after updating
-                        transactionController.clearSelection();
+                        if (isIncomingLoan) {
+                          if (transactionController
+                              .selectedTransactionIds.isEmpty) {
+                            AppSnackbar.showError(
+                              'Select a transaction first',
+                            );
+                            return;
+                          }
 
-                        Get.back(); // Close the dialog
+                          Navigator.pop(context);
+                          await applyLoanCategoryToSelected();
+                          return;
+                        }
+
+                        if (isLoanRepayment) {
+                          if (transactionController
+                              .selectedTransactionIds.isEmpty) {
+                            AppSnackbar.showError(
+                              'Select a transaction first',
+                            );
+                            return;
+                          }
+
+                          final primaryId = transactionController
+                              .selectedTransactionIds.first;
+                          final primary = transactionController.transactions
+                              .firstWhere((t) => t.id == primaryId);
+
+                          Navigator.pop(context);
+                          showLoanRepaymentPairDialog(context, primary);
+                          return;
+                        }
+
+                        final categoryIndex = '$index';
+                        Navigator.pop(context);
+
+                        if (type == 'Expense') {
+                          showBudgetLineItemDialog(
+                            context,
+                            categoryIndex: categoryIndex,
+                          );
+                        } else {
+                          await applyCategoryToSelectedTransactions(
+                            categoryIndex: categoryIndex,
+                          );
+                        }
                       },
                       child: Container(
                         decoration: BoxDecoration(

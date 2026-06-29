@@ -1,20 +1,24 @@
 import 'package:birren/app/transaction_usecases.dart';
+import 'package:birren/data/service/bank_sms_log_service.dart';
 import 'package:birren/data/service/sms_service.dart';
 import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:get/get.dart';
-import 'package:logger/logger.dart';
+import 'package:birren/core/app_logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/bank_usecases.dart';
 import '../../data/service/shared_prefs_service.dart';
 import '../../domain/entities/bank.dart';
 import '../../domain/entities/transaction.dart';
+import '../util/category.dart';
+import '../util/cash_bank.dart';
 import '../widgets/app_snackbar.dart';
 
 
 class BankController extends GetxController {
   final SharedPrefsService prefs;
   final SmsService smsService;
+  final BankSmsLogService bankSmsLogService;
   final GetBanksUseCase getBanksUseCase;
   final GetBanksByUserUseCase getBanksByUserUseCase;
   final AddBankUseCase addBankUseCase;
@@ -25,6 +29,7 @@ class BankController extends GetxController {
 
   BankController( {
     required this.smsService,
+    required this.bankSmsLogService,
     required this.getBanksUseCase,
     required this.getBanksByUserUseCase,
     required this.addBankUseCase,
@@ -43,7 +48,7 @@ class BankController extends GetxController {
 
 
 
-  var logger = Logger();
+  var logger = appLogger;
 
   @override
   void onInit() {
@@ -57,9 +62,12 @@ class BankController extends GetxController {
       isLoading.value = true;
       final result = await getBanksUseCase.execute();
       logger.i("$result");
-      if(result.isNotEmpty){
-      banks.assignAll(result);}else{
+      if (result.isNotEmpty) {
+        banks.assignAll(result);
+        _ensureDefaultSelection(result.length);
+      } else {
         banks.clear();
+        selectedIndexes.clear();
       }
     } finally {
       //await Future.delayed(const Duration(milliseconds: 500));
@@ -72,13 +80,46 @@ class BankController extends GetxController {
       isLoading.value = true;
       final result = await getBanksByUserUseCase.execute(userId);
       banks.assignAll(result);
+      _ensureDefaultSelection(result.length);
     } finally {
       isLoading.value = false;
     }
   }
 
-  Future<void> addBank(String bankName, String? displayName) async {
-    isAddingBank.value  = true;
+  Future<void> addBank(
+    String bankName,
+    String? displayName,
+    DateTime importFromDate, {
+    double initialBalance = 0,
+  }) async {
+    if (isCashBankName(bankName)) {
+      final id = await prefs.getId();
+      if (id == null) {
+        AppSnackbar.showError('User not logged in');
+        return;
+      }
+
+      final now = DateTime.now();
+      final bank = Bank(
+        userId: int.parse(id),
+        bankName: bankName,
+        displayName: displayName,
+        balance: initialBalance,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      try {
+        await addBankUseCase.execute(bank);
+        await fetchBanks();
+      } catch (e) {
+        logger.e('Failed to add cash account: $e');
+        AppSnackbar.showError(e.toString());
+      }
+      return;
+    }
+
+    isAddingBank.value = true;
     final id = await prefs.getId();
     logger.i("${int.parse(id!)}");
     final amount = await smsService.fetchLastAmount(sender: bankName);
@@ -94,6 +135,13 @@ class BankController extends GetxController {
         updatedAt: now,
       );
       try {
+        final logPath = await bankSmsLogService.exportBankSmsToMarkdown(
+          bankName: bankName,
+        );
+        if (logPath != null) {
+          logger.i('Bank SMS log file: $logPath');
+        }
+
         await addBankUseCase.execute(bank);
         await fetchBanks();
         final newBank = banks.firstWhere(
@@ -102,23 +150,31 @@ class BankController extends GetxController {
         );
 
 
-        final fromDate = DateTime.now().subtract(const Duration(days: 3));
-
+        final fromDate = DateTime(
+          importFromDate.year,
+          importFromDate.month,
+          importFromDate.day,
+        );
         final result = await smsService.fetchTransactionsForBank(
-            address: newBank.bankName, fromDate: fromDate);
+          address: newBank.bankName,
+          fromDate: fromDate,
+        );
         if (result.isNotEmpty) {
           for (var transaction in result) {
-            var type;
-            if (transaction['transactionType'] == "credited" ||
-                transaction['transactionType'] == "received") {
-              type = "Income";
+            final rawType = transaction['transactionType'] as String?;
+            if (rawType == 'unknown') continue;
+            final String type;
+            if (rawType == 'income') {
+              type = 'Income';
+            } else if (rawType == 'withdrawal') {
+              type = 'Expense';
             } else {
-              type = "Expense";
+              continue;
             }
             final tran = Transaction(
                 bankId: newBank.id!,
                 type: type,
-                category: type == "Income" ? "5" : "17",
+                category: noCategory,
                 amount: transaction['firstAmount'],
                 dateOf: transaction['date'],
                 createdAt: DateTime.now(),
@@ -127,8 +183,18 @@ class BankController extends GetxController {
             );
             await createTransactionUseCase.execute(tran);
           }
+          final newestDate = result.first['date'] as DateTime;
+          await prefs.setLastFetch(newBank.bankName, newestDate);
+          logger.i(
+            'Saved last transaction date for ${newBank.bankName}: $newestDate',
+          );
+        } else {
+          await prefs.setLastFetch(newBank.bankName, fromDate);
+          logger.i(
+            'No actionable SMS from $fromDate for ${newBank.bankName}; '
+            'checkpoint set for incremental sync',
+          );
         }
-        await prefs.setLastFetch(bank.bankName, DateTime.now());
         await Future.delayed(const Duration(seconds: 3));
         isAddingBank.value = false;
       } catch (e) {
@@ -190,5 +256,15 @@ class BankController extends GetxController {
     selectedIndexes.clear();
 
     selectedIndexes.addAll(List.generate(banks.length, (index) => index));
+  }
+
+  void _ensureDefaultSelection(int bankCount) {
+    if (bankCount == 0) {
+      selectedIndexes.clear();
+      return;
+    }
+    if (selectedIndexes.isEmpty) {
+      selectedIndexes.addAll(List.generate(bankCount, (index) => index));
+    }
   }
 }

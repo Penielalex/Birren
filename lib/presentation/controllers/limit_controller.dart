@@ -42,10 +42,38 @@ class LimitController extends GetxController {
     }
   }
 
-  Future<void> addLimit(Limit limit) async {
+  Future<void> addLimit(Limit newLimit) async {
     final userId = await prefs.getId();
-    var limits = Limit(userId: int.parse(userId!), type: limit.type, amount: limit.amount, monthStartDay: limit.monthStartDay, monthStartType: limit.monthStartType, createdAt: limit.createdAt, updatedAt: limit.updatedAt);
-    await createLimitUseCase.execute(limits);
+    
+    // Check if the user already has a limit
+    if (limit.value != null) {
+      // User has a limit already, update it instead of creating a new one
+      final existingLimit = limit.value!;
+      var updatedLimit = Limit(
+        id: existingLimit.id,
+        userId: int.parse(userId!), 
+        type: newLimit.type, 
+        amount: newLimit.amount, 
+        monthStartDay: newLimit.monthStartDay, 
+        monthStartType: newLimit.monthStartType, 
+        createdAt: existingLimit.createdAt, 
+        updatedAt: DateTime.now()
+      );
+      await updateLimitUseCase.execute(updatedLimit);
+    } else {
+      // No existing limit, create one
+      var limitToCreate = Limit(
+        userId: int.parse(userId!), 
+        type: newLimit.type, 
+        amount: newLimit.amount, 
+        monthStartDay: newLimit.monthStartDay, 
+        monthStartType: newLimit.monthStartType, 
+        createdAt: newLimit.createdAt, 
+        updatedAt: newLimit.updatedAt
+      );
+      await createLimitUseCase.execute(limitToCreate);
+    }
+    
     await fetchLimits();
   }
 

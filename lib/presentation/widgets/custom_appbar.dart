@@ -1,6 +1,7 @@
 import 'package:birren/presentation/controllers/bank_controller.dart';
 import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:birren/presentation/pages/notifications_page.dart';
+import 'package:birren/presentation/pages/profile_settings_page.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
 import 'package:flutter/material.dart';
@@ -53,33 +54,34 @@ class _CustomAppBarState extends State<CustomAppBar> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Colors.blue, Colors.green],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Colors.lightBlue.shade50,
-                        child: Icon(
-                          Icons.person_outline,
-                          color: Colors.black,
-                          size: 28,
+                GestureDetector(
+                  onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileSettingsPage(),
                         ),
                       ),
-                    ],
-
+                  child: Container(
+                    padding: const EdgeInsets.all(2.5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Colors.blue, Colors.green],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: CircleAvatar(
+                      radius: 24,
+                      backgroundColor: Colors.lightBlue.shade50,
+                      child: const Icon(
+                        Icons.person_outline,
+                        color: Colors.black,
+                        size: 28,
+                      ),
+                    ),
                   ),
                 ),
-                SizedBox(width:10),
+                const SizedBox(width: 10),
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,

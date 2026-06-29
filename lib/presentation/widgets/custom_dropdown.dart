@@ -62,7 +62,7 @@ class CustomDropdown extends StatelessWidget {
         items: items
             .map((item) => DropdownMenuItem(
           value: item,
-          child: Text(item),
+          child: Text(item, style: AppTextStyles.body1),
         ))
             .toList(),
         onChanged: isEnabled ? onChanged : null,

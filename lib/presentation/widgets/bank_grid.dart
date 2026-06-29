@@ -5,11 +5,14 @@ import 'package:birren/presentation/widgets/custom_dropdown.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get/get_core/src/get_main.dart';
-import 'package:logger/logger.dart';
+import 'package:intl/intl.dart';
+import 'package:birren/core/app_logger.dart';
 import '../../domain/entities/bank.dart';
 import '../controllers/bank_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_style.dart';
+import '../util/cash_bank.dart';
+import '../widgets/app_snackbar.dart';
 import 'custom_textfield.dart';
 
 class BanksGrid extends StatefulWidget {
@@ -33,14 +36,20 @@ class _BanksGridState extends State<BanksGrid> {
   List<GlobalKey> bankItemKeys = [];
 
   String selectedBank = "";
+  DateTime _importFromDate = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    1,
+  );
   final List<String> bankNamesAll = [
     "BOA",
     "CBE",
     "127",
-    "MPESA"
+    "MPESA",
+    cashBankName,
   ];
   final _displayNameController = TextEditingController();
-  final _amount = TextEditingController();
+  final _startingBalanceController = TextEditingController();
   final BankController bankController = Get.find<BankController>();
   final TransactionController transactionController = Get.find<TransactionController>();
   bool showAll = false;
@@ -62,22 +71,13 @@ class _BanksGridState extends State<BanksGrid> {
   ];
 
 
-  final logger = Logger();
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Initially, all banks are selected
-    bankController.selectedIndexes.addAll(List.generate(bankController.banks.length, (index) => index));
-
-
-  }
+  final logger = appLogger;
 
   @override
   void dispose() {
     selectedBank ="";
     _displayNameController.dispose();
+    _startingBalanceController.dispose();
     super.dispose();
   }
 
@@ -90,10 +90,30 @@ class _BanksGridState extends State<BanksGrid> {
   }
 
   void _showAddBankDialog() {
+    var importFromDate = _importFromDate;
+    _startingBalanceController.clear();
+
+    final availableBanks = bankNamesAll
+        .where(
+          (name) => !bankController.banks.any((b) => b.bankName == name),
+        )
+        .toList();
+
+    if (availableBanks.isEmpty) {
+      AppSnackbar.showError('All account types are already added');
+      return;
+    }
+
+    if (!availableBanks.contains(selectedBank)) {
+      selectedBank = availableBanks.first;
+    }
+
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
           backgroundColor: AppColors.background,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10), // smaller radius
@@ -102,17 +122,71 @@ class _BanksGridState extends State<BanksGrid> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CustomDropdown(value: selectedBank,hint:"Bank Name", items: bankNamesAll, onChanged: (value) {
-                setState(() {
-                  selectedBank = value!;
-
-                });
-              },),
+              CustomDropdown(
+                value: selectedBank,
+                hint: "Bank Name",
+                items: availableBanks,
+                onChanged: (value) {
+                  setDialogState(() {
+                    selectedBank = value!;
+                  });
+                },
+              ),
               // Bank Name Field
 
               const SizedBox(height: 16),
 
+              if (isCashBankName(selectedBank)) ...[
+                CustomTextField(
+                  controller: _startingBalanceController,
+                  hintText: 'Starting cash balance',
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Cash transactions are entered manually — no SMS import.',
+                  style: AppTextStyles.lightBody1,
+                ),
+              ] else
+                InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: importFromDate,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
+                      helpText: 'Import transactions from',
+                    );
+                    if (picked != null) {
+                      setDialogState(() {
+                        importFromDate = DateTime(
+                          picked.year,
+                          picked.month,
+                          picked.day,
+                        );
+                      });
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Import from date',
+                      labelStyle: AppTextStyles.body1,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      suffixIcon: const Icon(Icons.calendar_today),
+                    ),
+                    child: Text(
+                      DateFormat.yMMMd().format(importFromDate),
+                      style: AppTextStyles.body1,
+                    ),
+                  ),
+                ),
 
+              const SizedBox(height: 16),
 
               // Display Name Field
               CustomTextField(controller: _displayNameController, hintText: "Display Name", suffixIcon:Icons.info_outline, onSuffixPressed: (){
@@ -146,15 +220,39 @@ class _BanksGridState extends State<BanksGrid> {
                 final bankName = selectedBank;
                 String? displayName = _displayNameController.text.trim();
 
-                if (bankName.isEmpty) return; // Require bank name
-                if (displayName.isEmpty){
+                if (bankName.isEmpty) return;
+
+                final initialBalance = isCashBankName(bankName)
+                    ? (double.tryParse(
+                          _startingBalanceController.text.trim(),
+                        ) ??
+                        0)
+                    : 0.0;
+
+                if (isCashBankName(bankName) && initialBalance < 0) {
+                  AppSnackbar.showError('Starting balance cannot be negative');
+                  return;
+                }
+
+                if (displayName.isEmpty) {
                   displayName = null;
                 }
-                await bankController.addBank(bankName, displayName);
+                _importFromDate = importFromDate;
+                await bankController.addBank(
+                  bankName,
+                  displayName,
+                  importFromDate,
+                  initialBalance: initialBalance,
+                );
 
-
-                selectedBank ="";
+                selectedBank = "";
                 _displayNameController.clear();
+                _startingBalanceController.clear();
+                _importFromDate = DateTime(
+                  DateTime.now().year,
+                  DateTime.now().month,
+                  1,
+                );
 
                 await transactionController.fetchSavedTransactions();
 
@@ -169,6 +267,8 @@ class _BanksGridState extends State<BanksGrid> {
               child:  Text("Add",style: AppTextStyles.smallButton1),
             ),
           ],
+        );
+          },
         );
       },
     );

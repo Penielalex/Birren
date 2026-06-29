@@ -1,5 +1,5 @@
 name: birren
-description: "A new Flutter project."
+description: "Personal finance app for Ethiopia — SMS bank import, budgets, loans, and cash tracking."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -44,10 +44,13 @@ dependencies:
   logger: ^2.6.2
   carousel_slider: ^5.1.1
   google_fonts: ^6.3.2
-  telephony: ^0.2.0
   permission_handler: ^12.0.1
   intl: ^0.20.2
   loading_animation_widget: ^1.3.0
+  crypto: ^3.0.6
+  file_picker: ^8.1.7
+  share_plus: ^10.1.4
+  home_widget: ^0.9.3
 
 dev_dependencies:
   flutter_test:

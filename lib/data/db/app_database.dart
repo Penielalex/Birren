@@ -40,32 +40,89 @@ class Transactions extends Table {
   RealColumn get amount => real()();
   IntColumn get transferId =>
       integer().nullable().customConstraint('NULL REFERENCES transactions(id)')();
+  IntColumn get budgetLineItemId => integer().nullable()();
+  IntColumn get loanId =>
+      integer().nullable().customConstraint('NULL REFERENCES loans(id)')();
   DateTimeColumn get dateOf => dateTime()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
-// Limits table
+// Limits table (legacy — replaced by Budgets)
 class Limits extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get userId => integer().customConstraint('REFERENCES users(id)')();
-  TextColumn get type => text()(); // e.g., "daily", "weekly", "monthly"
+  TextColumn get type => text()();
   RealColumn get amount => real()();
-  IntColumn get monthStartDay => integer()(); // e.g., 1st, 15th
-  TextColumn get monthStartType => text()(); // e.g., "day" or "week"
+  IntColumn get monthStartDay => integer()();
+  TextColumn get monthStartType => text()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+class Budgets extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get userId => integer().customConstraint('REFERENCES users(id)')();
+  TextColumn get name => text()();
+  DateTimeColumn get startDate => dateTime()();
+  DateTimeColumn get endDate => dateTime()();
+  TextColumn get status => text()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+class BudgetLineItems extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get budgetId =>
+      integer().customConstraint('REFERENCES budgets(id)')();
+  TextColumn get name => text()();
+  RealColumn get allocatedAmount => real()();
+  TextColumn get categoryIndex => text().nullable()();
+}
+
+class Loans extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get userId => integer().customConstraint('REFERENCES users(id)')();
+  TextColumn get counterpartyName => text().nullable()();
+  RealColumn get principalAmount => real()();
+  IntColumn get disbursementTransactionId =>
+      integer().customConstraint('REFERENCES transactions(id)')();
+  TextColumn get status => text()();
+  IntColumn get closeTransactionId =>
+      integer().nullable().customConstraint('NULL REFERENCES transactions(id)')();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 // Database
-@DriftDatabase(tables: [Users, Banks, Transactions, Limits])
+@DriftDatabase(
+  tables: [Users, Banks, Transactions, Limits, Budgets, BudgetLineItems, Loans],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 5;
 
-// You can add DAOs here later
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (migrator, from, to) async {
+      if (from < 2) {
+        await migrator.addColumn(transactions, transactions.transferId);
+      }
+      if (from < 3) {
+        await migrator.createTable(budgets);
+        await migrator.createTable(budgetLineItems);
+      }
+      if (from < 4) {
+        await migrator.addColumn(transactions, transactions.budgetLineItemId);
+      }
+      if (from < 5) {
+        await migrator.createTable(loans);
+        await migrator.addColumn(transactions, transactions.loanId);
+      }
+    },
+  );
 }
 
 // Lazy connection
