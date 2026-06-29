@@ -5,7 +5,7 @@ Birren is a Flutter personal finance app built for Ethiopia. It reads bank and m
 ## Features
 
 ### Accounts & SMS import
-- Connect **BOA**, **CBE**, **127**, **M-PESA**, and a manual **Cash** account
+- Connect **BOA**, **CBE**, **127 (Telebirr)**, **M-PESA**, and a manual **Cash** account
 - Automatic transaction import from SMS (Cash is manual-only)
 - Multi-account grid with balance display and account nicknames
 - Per-bank sync checkpoints so only new messages are processed
@@ -132,7 +132,7 @@ Install on a device with USB debugging or sideload the APK. Release builds are c
 |--------|---------|
 | BOA | Bank of Abyssinia |
 | CBE | Commercial Bank of Ethiopia |
-| 127 | Bank |
+| 127 | Telebirr |
 | MPESA | M-PESA mobile money |
 
 SMS formats change over time; parser rules live in `lib/data/service/sms_regex_parser.dart`.
