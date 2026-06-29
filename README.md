@@ -27,9 +27,9 @@ Birren is a Flutter personal finance app built for Ethiopia. It reads bank and m
 - Calendar heat indicators tied to daily/monthly budget allowance
 
 ### Loans
-- Track money **borrowed from outside** (Income → Loan)
-- Record repayments (Expense → Loan Repayment)
-- Open loans list with return history
+- **Lent** — outgoing **Loan** (expense) tracks money you give; link incoming **Returns** to it
+- **Borrowed** — incoming **Loan** (income) tracks money you receive; link outgoing **Loan Repayment** to it
+- Open loans list with payment history for both directions
 - Close loan with write-off expense (category + budget line item)
 
 ### Cash

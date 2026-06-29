@@ -11,7 +11,17 @@ abstract class LoanRepository {
     required double principalAmount,
     String? counterpartyName,
   });
-  Future<void> linkReturnToLoan({
+  Future<int> createLoanFromLend({
+    required int userId,
+    required int transactionId,
+    required double principalAmount,
+    String? counterpartyName,
+  });
+  Future<void> linkRepaymentToLoan({
+    required int repaymentTransactionId,
+    required int loanId,
+  });
+  Future<void> linkReturnToLentLoan({
     required int returnTransactionId,
     required int loanId,
   });

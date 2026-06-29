@@ -60,7 +60,7 @@ class _LoansPageState extends State<LoansPage> {
                 ? Center(
                     child: Text(
                       _filter == 'open'
-                          ? 'No open loans yet.\nCategorize incoming money as Loan (income) to track it here.'
+                          ? 'No open loans yet.\nLend: categorize outgoing money as Loan (expense).\nBorrow: categorize incoming money as Loan (income).'
                           : 'No loans in this view.',
                       style: AppTextStyles.body1,
                       textAlign: TextAlign.center,
@@ -116,11 +116,12 @@ class _LoanCard extends StatelessWidget {
     final bankController = Get.find<BankController>();
     final transactions = transactionController.transactions;
 
-    final repaid = loanController.totalRepaidForLoan(loan, transactions);
+    final repaid = loanController.totalPaidDownForLoan(loan, transactions);
     final remaining = loanController.remainingBalance(loan, transactions);
-    final receipt = loanController.loanReceiptTransaction(loan, transactions);
-    final repayments =
-        loanController.repaymentTransactionsForLoan(loan, transactions);
+    final disbursement = loanController.disbursementTransaction(loan, transactions);
+    final linkedPayments =
+        loanController.linkedPaymentsForLoan(loan, transactions);
+    final isLent = loanController.isLentLoan(loan, transactions);
     final title = loan.counterpartyName?.isNotEmpty == true
         ? loan.counterpartyName!
         : 'Loan #${loan.id}';
@@ -159,6 +160,11 @@ class _LoanCard extends StatelessWidget {
                           color: loan.isOpen ? Colors.green : Colors.grey,
                         ),
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isLent ? 'Lent to someone' : 'Borrowed',
+                        style: AppTextStyles.lightBody1,
+                      ),
                     ],
                   ),
                 ),
@@ -173,37 +179,51 @@ class _LoanCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: _stat('Borrowed', formatter.format(loan.principalAmount)),
+                  child: _stat(
+                    isLent ? 'Lent' : 'Borrowed',
+                    formatter.format(loan.principalAmount),
+                  ),
                 ),
                 Expanded(
-                  child: _stat('Repaid', formatter.format(repaid)),
+                  child: _stat(
+                    isLent ? 'Returned' : 'Repaid',
+                    formatter.format(repaid),
+                  ),
                 ),
                 Expanded(
                   child: _stat('Remaining', formatter.format(remaining)),
                 ),
               ],
             ),
-            if (receipt != null) ...[
+            if (disbursement != null) ...[
               const Divider(color: Colors.white24, height: 24),
-              Text('Loan received', style: AppTextStyles.body1),
+              Text(
+                isLent ? 'Money lent' : 'Money received',
+                style: AppTextStyles.body1,
+              ),
               const SizedBox(height: 8),
               _transactionRow(
-                receipt,
-                bankLabel(receipt),
+                disbursement,
+                bankLabel(disbursement),
                 formatter,
-                prefix: '+',
+                prefix: isLent ? '-' : '+',
               ),
             ],
-            if (repayments.isNotEmpty) ...[
+            if (linkedPayments.isNotEmpty) ...[
               const Divider(color: Colors.white24, height: 24),
-              Text('Repayments (${repayments.length})', style: AppTextStyles.body1),
+              Text(
+                isLent
+                    ? 'Returns (${linkedPayments.length})'
+                    : 'Repayments (${linkedPayments.length})',
+                style: AppTextStyles.body1,
+              ),
               const SizedBox(height: 8),
-              ...repayments.map(
+              ...linkedPayments.map(
                 (txn) => _transactionRow(
                   txn,
                   bankLabel(txn),
                   formatter,
-                  prefix: '-',
+                  prefix: isLent ? '+' : '-',
                 ),
               ),
             ],

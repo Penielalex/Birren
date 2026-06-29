@@ -92,11 +92,48 @@ class LoanDao extends DatabaseAccessor<AppDatabase> with _$LoanDaoMixin {
     });
   }
 
-  Future<void> linkReturnToLoan({
-    required int returnTransactionId,
+  /// Registers money lent to someone (outgoing expense).
+  Future<int> createLoanFromLend({
+    required int userId,
+    required int transactionId,
+    required double principalAmount,
+    String? counterpartyName,
+  }) async {
+    return db.transaction(() async {
+      final now = DateTime.now();
+      final loanId = await into(loans).insert(
+        LoansCompanion(
+          userId: Value(userId),
+          counterpartyName: Value(counterpartyName),
+          principalAmount: Value(principalAmount),
+          disbursementTransactionId: Value(transactionId),
+          status: const Value('open'),
+          createdAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+
+      await (update(transactions)..where((t) => t.id.equals(transactionId)))
+          .write(
+        TransactionsCompanion(
+          category: Value('$expenseLendLoanIndex'),
+          budgetLineItemId: const Value(null),
+          loanId: Value(loanId),
+          updatedAt: Value(now),
+        ),
+      );
+
+      return loanId;
+    });
+  }
+
+  /// Links an expense repayment to a borrowed loan (money you received).
+  Future<void> linkRepaymentToLoan({
+    required int repaymentTransactionId,
     required int loanId,
   }) async {
-    await (update(transactions)..where((t) => t.id.equals(returnTransactionId)))
+    await (update(transactions)
+          ..where((t) => t.id.equals(repaymentTransactionId)))
         .write(
       TransactionsCompanion(
         category: Value('$expenseLoanIndex'),
@@ -106,6 +143,33 @@ class LoanDao extends DatabaseAccessor<AppDatabase> with _$LoanDaoMixin {
       ),
     );
   }
+
+  /// Links an income return to a lent loan (money you gave out).
+  Future<void> linkReturnToLentLoan({
+    required int returnTransactionId,
+    required int loanId,
+  }) async {
+    await (update(transactions)
+          ..where((t) => t.id.equals(returnTransactionId)))
+        .write(
+      TransactionsCompanion(
+        category: Value('$incomeReturnsIndex'),
+        loanId: Value(loanId),
+        budgetLineItemId: const Value(null),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  @Deprecated('Use linkRepaymentToLoan or linkReturnToLentLoan')
+  Future<void> linkReturnToLoan({
+    required int returnTransactionId,
+    required int loanId,
+  }) =>
+      linkRepaymentToLoan(
+        repaymentTransactionId: returnTransactionId,
+        loanId: loanId,
+      );
 
   Future<int?> closeLoan({
     required int loanId,
@@ -152,11 +216,17 @@ class LoanDao extends DatabaseAccessor<AppDatabase> with _$LoanDaoMixin {
     final loan = await getLoanById(loanId);
     if (loan == null) return [];
 
+    final disbursement = await (select(transactions)
+          ..where((t) => t.id.equals(loan.disbursementTransactionId)))
+        .getSingleOrNull();
+    final isLent = disbursement?.type == 'Expense';
+    final linkedType = isLent ? 'Income' : 'Expense';
+
     final rows = await (select(transactions)
           ..where(
             (t) =>
                 t.loanId.equals(loanId) &
-                t.type.equals('Expense') &
+                t.type.equals(linkedType) &
                 t.id.isNotValue(loan.disbursementTransactionId),
           )
           ..orderBy([(t) => OrderingTerm.desc(t.dateOf)]))

@@ -329,7 +329,12 @@ void main() async {
       GetOpenLoansByUserIdUseCase(loanRepository);
   final createLoanFromDisbursementUseCase =
       CreateLoanFromDisbursementUseCase(loanRepository);
-  final linkReturnToLoanUseCase = LinkReturnToLoanUseCase(loanRepository);
+  final createLoanFromLendUseCase =
+      CreateLoanFromLendUseCase(loanRepository);
+  final linkRepaymentToLoanUseCase =
+      LinkRepaymentToLoanUseCase(loanRepository);
+  final linkReturnToLentLoanUseCase =
+      LinkReturnToLentLoanUseCase(loanRepository);
   final closeLoanUseCase = CloseLoanUseCase(loanRepository);
   final getReturnTransactionsForLoanUseCase =
       GetReturnTransactionsForLoanUseCase(loanRepository);
@@ -339,7 +344,9 @@ void main() async {
     getLoansByUserIdUseCase: getLoansByUserIdUseCase,
     getOpenLoansByUserIdUseCase: getOpenLoansByUserIdUseCase,
     createLoanFromDisbursementUseCase: createLoanFromDisbursementUseCase,
-    linkReturnToLoanUseCase: linkReturnToLoanUseCase,
+    createLoanFromLendUseCase: createLoanFromLendUseCase,
+    linkRepaymentToLoanUseCase: linkRepaymentToLoanUseCase,
+    linkReturnToLentLoanUseCase: linkReturnToLentLoanUseCase,
     closeLoanUseCase: closeLoanUseCase,
     getReturnTransactionsForLoanUseCase: getReturnTransactionsForLoanUseCase,
   );

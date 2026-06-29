@@ -26,8 +26,11 @@ const int incomeReturnsIndex = 2;
 /// Index of "Loan" in [incomeCategories] — money borrowed from outside.
 const int incomeLoanIndex = 7;
 
-/// Index of "Loan Repayment" in [expenseCategories].
+/// Index of "Loan Repayment" in [expenseCategories] — paying back borrowed money.
 const int expenseLoanIndex = 13;
+
+/// Index of "Loan" in [expenseCategories] — money you lend to someone.
+const int expenseLendLoanIndex = 25;
 
 bool isInternalTransferCategory(String category, String type) {
   if (type == 'Income') {
@@ -47,6 +50,10 @@ bool isLoanRepaymentCategory(String category, String type) {
   return type == 'Expense' && category == '$expenseLoanIndex';
 }
 
+bool isOutgoingLendCategory(String category, String type) {
+  return type == 'Expense' && category == '$expenseLendLoanIndex';
+}
+
 /// @deprecated Use [isLoanRepaymentCategory] or [isIncomingLoanCategory].
 bool isLoanCategory(String category, String type) =>
     isLoanRepaymentCategory(category, type);
@@ -59,6 +66,7 @@ bool countsInIncomeExpenseSummary(String category, String type) {
   if (isInternalTransferCategory(category, type)) return false;
   if (isIncomingLoanCategory(category, type)) return false;
   if (isLoanRepaymentCategory(category, type)) return false;
+  if (isOutgoingLendCategory(category, type)) return false;
   return true;
 }
 
@@ -132,5 +140,6 @@ final List<Category> expenseCategories = [
   Category(name: 'Entertainment', icon: Icons.movie_creation_outlined, color: Color(0XFFFFF9C9)),
   Category(name: 'Internal Transfer', icon: Icons.compare_arrows_outlined, color: Color(0XFF016B3C)),
   Category(name: 'Transfer Fee', icon: Icons.receipt, color: Colors.blueGrey),
+  Category(name: 'Loan', icon: Icons.payments_outlined, color: Colors.blueGrey),
 
 ];

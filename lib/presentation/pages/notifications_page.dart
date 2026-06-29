@@ -125,7 +125,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Text(
-                  "Please set categories for imported transactions. Expenses ask which budget item to deduct from, except Loan Repayment (tracked on Loans tab). Incoming Loan (income) registers borrowed money. Transfer Fee uses its budget item automatically.",
+                  "Please set categories for imported transactions. Outgoing Loan (expense) tracks money you lent; link incoming Returns to it. Incoming Loan (income) tracks money you borrowed; link outgoing Loan Repayment to it. Transfer Fee uses its budget item automatically.",
                   style: AppTextStyles.body1,
                 ),
               ),
@@ -201,6 +201,10 @@ void showCategoryDialog(BuildContext context, String type) {
                                 index == expenseInternalTransferIndex);
                         final isIncomingLoan =
                             type == 'Income' && index == incomeLoanIndex;
+                        final isLoanReturn =
+                            type == 'Income' && index == incomeReturnsIndex;
+                        final isOutgoingLend =
+                            type == 'Expense' && index == expenseLendLoanIndex;
                         final isLoanRepayment =
                             type == 'Expense' && index == expenseLoanIndex;
 
@@ -233,7 +237,40 @@ void showCategoryDialog(BuildContext context, String type) {
                           }
 
                           Navigator.pop(context);
-                          await applyLoanCategoryToSelected();
+                          await applyBorrowedLoanCategoryToSelected();
+                          return;
+                        }
+
+                        if (isOutgoingLend) {
+                          if (transactionController
+                              .selectedTransactionIds.isEmpty) {
+                            AppSnackbar.showError(
+                              'Select a transaction first',
+                            );
+                            return;
+                          }
+
+                          Navigator.pop(context);
+                          await applyLentLoanCategoryToSelected();
+                          return;
+                        }
+
+                        if (isLoanReturn) {
+                          if (transactionController
+                              .selectedTransactionIds.isEmpty) {
+                            AppSnackbar.showError(
+                              'Select a transaction first',
+                            );
+                            return;
+                          }
+
+                          final primaryId = transactionController
+                              .selectedTransactionIds.first;
+                          final primary = transactionController.transactions
+                              .firstWhere((t) => t.id == primaryId);
+
+                          Navigator.pop(context);
+                          showLoanReturnPairDialog(context, primary);
                           return;
                         }
 

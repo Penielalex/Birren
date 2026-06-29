@@ -35,15 +35,47 @@ class CreateLoanFromDisbursementUseCase {
       );
 }
 
-class LinkReturnToLoanUseCase {
+class CreateLoanFromLendUseCase {
   final LoanRepository repository;
-  LinkReturnToLoanUseCase(this.repository);
+  CreateLoanFromLendUseCase(this.repository);
+
+  Future<int> execute({
+    required int userId,
+    required int transactionId,
+    required double principalAmount,
+    String? counterpartyName,
+  }) =>
+      repository.createLoanFromLend(
+        userId: userId,
+        transactionId: transactionId,
+        principalAmount: principalAmount,
+        counterpartyName: counterpartyName,
+      );
+}
+
+class LinkRepaymentToLoanUseCase {
+  final LoanRepository repository;
+  LinkRepaymentToLoanUseCase(this.repository);
+
+  Future<void> execute({
+    required int repaymentTransactionId,
+    required int loanId,
+  }) =>
+      repository.linkRepaymentToLoan(
+        repaymentTransactionId: repaymentTransactionId,
+        loanId: loanId,
+      );
+}
+
+class LinkReturnToLentLoanUseCase {
+  final LoanRepository repository;
+  LinkReturnToLentLoanUseCase(this.repository);
 
   Future<void> execute({
     required int returnTransactionId,
     required int loanId,
   }) =>
-      repository.linkReturnToLoan(
+      repository.linkReturnToLentLoan(
         returnTransactionId: returnTransactionId,
         loanId: loanId,
       );
