@@ -1,4 +1,4 @@
-# Birren
+# Birren(ብሬን)
 
 Birren is a Flutter personal finance app built for Ethiopia. It reads bank and mobile-money SMS on your device, turns them into transactions, and helps you track accounts, budgets, loans, and spending limits — all stored locally on your phone.
 
