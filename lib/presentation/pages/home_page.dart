@@ -2,6 +2,7 @@ import 'package:birren/presentation/controllers/app_navigation_controller.dart';
 import 'package:birren/presentation/pages/accounts_page.dart';
 import 'package:birren/presentation/pages/loans_page.dart';
 import 'package:birren/presentation/pages/my_money_page.dart';
+import 'package:birren/presentation/pages/notes_page.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
 import 'package:birren/presentation/widgets/custom_appbar.dart';
@@ -26,11 +27,14 @@ class HomePage extends StatelessWidget {
               _buildTab('Accounts', 0),
               _buildTab('My Money', 1),
               _buildTab('Loans', 2),
+              _buildTab('Notes', 3),
             ],
           ),
           Expanded(
             child: Obx(() {
               switch (navigationController.homeTabIndex.value) {
+                case 3:
+                  return const NotesPage();
                 case 2:
                   return const LoansPage();
                 case 1:
@@ -63,12 +67,14 @@ class HomePage extends StatelessWidget {
                     style: navigationController.homeTabIndex.value == index
                         ? AppTextStyles.midBody1
                         : AppTextStyles.midBody3,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 12),
+                margin: const EdgeInsets.symmetric(horizontal: 8),
                 decoration: BoxDecoration(
                   color: navigationController.homeTabIndex.value == index
                       ? AppColors.accent

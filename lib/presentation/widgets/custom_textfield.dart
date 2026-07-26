@@ -22,6 +22,8 @@ class CustomTextField extends StatelessWidget {
   final VoidCallback? onSuffixPressed;
   final bool obscureText;
   final ValueChanged<String>? onSubmitted;
+  final int? maxLines;
+  final int? minLines;
 
   const CustomTextField({
     Key? key,
@@ -42,6 +44,8 @@ class CustomTextField extends StatelessWidget {
     this.onSuffixPressed,
     this.obscureText = false,
     this.onSubmitted,
+    this.maxLines = 1,
+    this.minLines,
   }) : super(key: key);
 
   @override
@@ -64,6 +68,8 @@ class CustomTextField extends StatelessWidget {
         enabled: enable,
         obscureText: obscureText,
         onSubmitted: onSubmitted,
+        maxLines: obscureText ? 1 : maxLines,
+        minLines: minLines,
         cursorColor: cursorColor ?? AppColors.accent,
         style: textStyle ?? AppTextStyles.body1,
         decoration: InputDecoration(

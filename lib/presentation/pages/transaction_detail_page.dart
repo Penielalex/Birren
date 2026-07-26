@@ -1,9 +1,11 @@
 import 'package:birren/data/models/sms_message_model.dart';
 import 'package:birren/presentation/controllers/bank_controller.dart';
+import 'package:birren/presentation/controllers/budget_controller.dart';
 import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
 import 'package:birren/presentation/util/category.dart';
+import 'package:birren/presentation/widgets/category_picker_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -24,6 +26,7 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
   final TransactionController transactionController =
       Get.find<TransactionController>();
   final BankController bankController = Get.find<BankController>();
+  final BudgetController budgetController = Get.find<BudgetController>();
 
   SmsMessageModel? _sms;
   bool _isLoadingSms = true;
@@ -45,115 +48,163 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
     }
   }
 
+  Transaction get _currentTransaction {
+    try {
+      return transactionController.transactions.firstWhere(
+        (t) => t.id == widget.transaction.id,
+      );
+    } catch (_) {
+      return widget.transaction;
+    }
+  }
+
+  String? _budgetLineItemName(Transaction transaction) {
+    if (transaction.budgetLineItemId == null) return null;
+    final budget = budgetController.activeBudget.value;
+    if (budget == null) return 'Budget item #${transaction.budgetLineItemId}';
+    for (final item in budget.lineItems) {
+      if (item.id == transaction.budgetLineItemId) return item.name;
+    }
+    for (final past in budgetController.budgetHistory) {
+      for (final item in past.lineItems) {
+        if (item.id == transaction.budgetLineItemId) return item.name;
+      }
+    }
+    return 'Budget item #${transaction.budgetLineItemId}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final transaction = widget.transaction;
-    final bank = bankController.banks.firstWhere(
-      (b) => b.id == transaction.bankId,
-      orElse: () => throw Exception('Bank not found'),
-    );
-    final linked = transactionController.findLinkedTransaction(transaction);
-    final amountPrefix = transaction.type == 'Income' ? '+' : '-';
-    final formattedAmount =
-        NumberFormat('#,##0.00').format(transaction.amount);
+    return Obx(() {
+      final transaction = _currentTransaction;
+      final bank = bankController.banks.firstWhere(
+        (b) => b.id == transaction.bankId,
+        orElse: () => throw Exception('Bank not found'),
+      );
+      final linked = transactionController.findLinkedTransaction(transaction);
+      final amountPrefix = transaction.type == 'Income' ? '+' : '-';
+      final formattedAmount =
+          NumberFormat('#,##0.00').format(transaction.amount);
+      final budgetItemName = _budgetLineItemName(transaction);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
+      return Scaffold(
         backgroundColor: AppColors.background,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: Text('Transaction Details', style: AppTextStyles.headline1),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _DetailCard(
-              children: [
-                _DetailRow(
-                  label: 'Amount',
-                  value: '$amountPrefix$formattedAmount birr',
-                  emphasize: true,
-                ),
-                _DetailRow(
-                  label: 'Type',
-                  value: transaction.type,
-                ),
-                _DetailRow(
-                  label: 'Category',
-                  value: categoryDisplayName(
-                    transaction.category,
-                    transaction.type,
-                  ),
-                ),
-                _DetailRow(
-                  label: 'Bank',
-                  value: bank.displayName ?? bank.bankName,
-                ),
-                _DetailRow(
-                  label: 'Date',
-                  value: DateFormat.yMMMMd().add_jm().format(transaction.dateOf),
-                ),
-                if (transaction.transferId != null) ...[
-                  const Divider(color: Colors.white24),
-                  _DetailRow(
-                    label: 'Linked transfer',
-                    value: linked != null
-                        ? '${linked.type} • ${NumberFormat('#,##0.00').format(linked.amount)} birr'
-                        : 'Transaction #${transaction.transferId}',
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text('Original SMS', style: AppTextStyles.headline1),
-            const SizedBox(height: 8),
-            _DetailCard(
-              children: [
-                if (_isLoadingSms)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: LoadingAnimationWidget.progressiveDots(
-                        color: AppColors.accent,
-                        size: 48,
-                      ),
-                    ),
-                  )
-                else if (_sms?.body != null && _sms!.body!.trim().isNotEmpty)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_sms!.date != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Text(
-                            'Received ${DateFormat.yMMMMd().add_jm().format(_sms!.date!)}',
-                            style: AppTextStyles.body1,
-                          ),
-                        ),
-                      SelectableText(
-                        _sms!.body!,
-                        style: AppTextStyles.body1.copyWith(height: 1.5),
-                      ),
-                    ],
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      'No matching SMS found for this transaction.',
-                      style: AppTextStyles.body1,
-                    ),
-                  ),
-              ],
-            ),
-          ],
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+          title: Text('Transaction Details', style: AppTextStyles.headline1),
         ),
-      ),
-    );
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _DetailCard(
+                children: [
+                  _DetailRow(
+                    label: 'Amount',
+                    value: '$amountPrefix$formattedAmount birr',
+                    emphasize: true,
+                  ),
+                  _DetailRow(
+                    label: 'Type',
+                    value: transaction.type,
+                  ),
+                  _DetailRow(
+                    label: 'Category',
+                    value: categoryDisplayName(
+                      transaction.category,
+                      transaction.type,
+                    ),
+                  ),
+                  if (budgetItemName != null)
+                    _DetailRow(
+                      label: 'Budget item',
+                      value: budgetItemName,
+                    ),
+                  _DetailRow(
+                    label: 'Bank',
+                    value: bank.displayName ?? bank.bankName,
+                  ),
+                  _DetailRow(
+                    label: 'Date',
+                    value:
+                        DateFormat.yMMMMd().add_jm().format(transaction.dateOf),
+                  ),
+                  if (transaction.transferId != null) ...[
+                    const Divider(color: Colors.white24),
+                    _DetailRow(
+                      label: 'Linked transfer',
+                      value: linked != null
+                          ? '${linked.type} • ${NumberFormat('#,##0.00').format(linked.amount)} birr'
+                          : 'Transaction #${transaction.transferId}',
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => editTransactionCategory(context, transaction),
+                child: Text(
+                  transactionHasNoCategory(transaction.category)
+                      ? 'Set Category'
+                      : 'Edit Category / Budget Item',
+                  style: AppTextStyles.smallButton1.copyWith(color: Colors.white),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text('Original SMS', style: AppTextStyles.headline1),
+              const SizedBox(height: 8),
+              _DetailCard(
+                children: [
+                  if (_isLoadingSms)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: LoadingAnimationWidget.progressiveDots(
+                          color: AppColors.accent,
+                          size: 48,
+                        ),
+                      ),
+                    )
+                  else if (_sms?.body != null && _sms!.body!.trim().isNotEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_sms!.date != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              'Received ${DateFormat.yMMMMd().add_jm().format(_sms!.date!)}',
+                              style: AppTextStyles.body1,
+                            ),
+                          ),
+                        SelectableText(
+                          _sms!.body!,
+                          style: AppTextStyles.body1.copyWith(height: 1.5),
+                        ),
+                      ],
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'No matching SMS found for this transaction.',
+                        style: AppTextStyles.body1,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 }
 

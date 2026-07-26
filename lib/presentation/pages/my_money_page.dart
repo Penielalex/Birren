@@ -2,6 +2,7 @@ import 'package:birren/presentation/controllers/app_navigation_controller.dart';
 import 'package:birren/presentation/controllers/budget_controller.dart';
 import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:birren/presentation/theme/text_style.dart';
+import 'package:birren/presentation/util/budget_date_format.dart';
 import 'package:birren/presentation/widgets/app_snackbar.dart';
 import 'package:birren/presentation/widgets/custom_calander.dart';
 import 'package:flutter/material.dart';
@@ -169,8 +170,8 @@ class _MyMoneyPageState extends State<MyMoneyPage> {
                   child: BudgetCard(
                     budgetName: budget?.name ?? '',
                     dateRange: hasBudget
-                        ? '${DateFormat.yMMMd().format(budget!.startDate)} – '
-                            '${DateFormat.yMMMd().format(budget.endDate)}'
+                        ? '${formatBudgetDateTime(budget!.startDate, context: context)} – '
+                            '${formatBudgetDateTime(budget.endDate, context: context)}'
                         : '',
                     totalBudget: '${formatter.format(totalAllocated)} birr',
                     totalSpent: '${formatter.format(totalSpent)} birr',
@@ -229,8 +230,8 @@ class _MyMoneyPageState extends State<MyMoneyPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Text(
-                    'Budget period: ${DateFormat.yMMMd().format(budget!.startDate)} – '
-                    '${DateFormat.yMMMd().format(budget.endDate)}',
+                    'Budget period: ${formatBudgetDateTime(budget!.startDate, context: context)} – '
+                    '${formatBudgetDateTime(budget.endDate, context: context)}',
                     style: AppTextStyles.body1.copyWith(fontSize: 13),
                   ),
                 )

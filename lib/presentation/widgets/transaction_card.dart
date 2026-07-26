@@ -212,15 +212,22 @@ class _TransactionCardState extends State<TransactionCard> {
                     ),
                   ],
                 ),
-                if(widget.fromNotification && transactionController.selectedTransactionIds.isEmpty)
+                if (widget.onSetCategoryPressed != null &&
+                    transactionController.selectedTransactionIds.isEmpty)
                   Column(
                     children: [
-                      SizedBox(height: 10),
-                      GestureDetector(onTap: widget.onSetCategoryPressed,
-                          child: Text("Set Category", style: AppTextStyles
-                              .button2.copyWith(fontSize: 12),))
+                      const SizedBox(height: 10),
+                      GestureDetector(
+                        onTap: widget.onSetCategoryPressed,
+                        child: Text(
+                          transactionHasNoCategory(widget.transaction.category)
+                              ? 'Set Category'
+                              : 'Edit Category',
+                          style: AppTextStyles.button2.copyWith(fontSize: 12),
+                        ),
+                      ),
                     ],
-                  )
+                  ),
 
               ],
             ),

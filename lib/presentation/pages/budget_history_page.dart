@@ -3,6 +3,7 @@ import 'package:birren/presentation/controllers/budget_controller.dart';
 import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:birren/presentation/theme/text_style.dart';
 import 'package:birren/presentation/pages/budget_line_item_transactions_page.dart';
+import 'package:birren/presentation/util/budget_date_format.dart';
 import 'package:birren/presentation/widgets/budget_context_menu.dart';
 import 'package:birren/presentation/widgets/budget_line_item_row.dart';
 import 'package:birren/presentation/widgets/create_budget_dialog.dart';
@@ -106,8 +107,8 @@ class _BudgetHistoryPageState extends State<BudgetHistoryPage> {
                 collapsedIconColor: Colors.white,
                 title: Text(budget.name, style: AppTextStyles.headline1),
                 subtitle: Text(
-                  '${DateFormat.yMMMd().format(budget.startDate)} – '
-                  '${DateFormat.yMMMd().format(budget.endDate)}',
+                  '${formatBudgetDateTime(budget.startDate, context: context)} – '
+                  '${formatBudgetDateTime(budget.endDate, context: context)}',
                   style: AppTextStyles.body1,
                 ),
                 children: [

@@ -10,6 +10,7 @@ import '../../domain/entities/bank.dart';
 import '../theme/text_style.dart';
 import '../util/cash_bank.dart';
 import '../widgets/bank_grid.dart';
+import '../widgets/category_picker_dialog.dart';
 import '../widgets/manual_cash_transaction_dialog.dart';
 import '../widgets/transaction_card.dart';
 import '../widgets/transaction_list.dart';
@@ -430,9 +431,12 @@ class _AccountsPageState extends State<AccountsPage> {
                           physics: NeverScrollableScrollPhysics(),
                           itemCount: txns.length,
                           itemBuilder: (context, index) {
-                            return TransactionCard(transaction: txns[index],
+                            return TransactionCard(
+                              transaction: txns[index],
                               fromNotification: false,
-                              onSetCategoryPressed: () {},);
+                              onSetCategoryPressed: () =>
+                                  editTransactionCategory(context, txns[index]),
+                            );
                           },
                         );
                       }

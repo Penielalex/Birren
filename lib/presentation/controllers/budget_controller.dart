@@ -59,13 +59,13 @@ class BudgetController extends GetxController {
   DateTime? get periodStart {
     final budget = activeBudget.value;
     if (budget == null) return null;
-    return _dayStart(budget.startDate);
+    return budget.startDate;
   }
 
   DateTime? get periodEnd {
     final budget = activeBudget.value;
     if (budget == null) return null;
-    return _dayEnd(budget.endDate);
+    return budget.endDate;
   }
 
   double get totalAllocated => activeBudget.value?.totalAllocated ?? 0;
@@ -80,8 +80,8 @@ class BudgetController extends GetxController {
     Budget budget,
     List<Transaction> transactions,
   ) {
-    final start = _dayStart(budget.startDate);
-    final end = _dayEnd(budget.endDate);
+    final start = budget.startDate;
+    final end = budget.endDate;
     final lineItemIds =
         budget.lineItems.map((i) => i.id).whereType<int>().toSet();
 
@@ -99,8 +99,7 @@ class BudgetController extends GetxController {
           !lineItemIds.contains(t.budgetLineItemId)) {
         continue;
       }
-      final day = DateTime(t.dateOf.year, t.dateOf.month, t.dateOf.day);
-      if (day.isBefore(start) || day.isAfter(end)) continue;
+      if (t.dateOf.isBefore(start) || t.dateOf.isAfter(end)) continue;
       total += t.amount;
     }
     return total;
@@ -122,8 +121,8 @@ class BudgetController extends GetxController {
   ) {
     if (item.id == null) return 0;
 
-    final start = _dayStart(budget.startDate);
-    final end = _dayEnd(budget.endDate);
+    final start = budget.startDate;
+    final end = budget.endDate;
     double total = 0;
 
     for (final t in transactions) {
@@ -136,8 +135,7 @@ class BudgetController extends GetxController {
         continue;
       }
       if (t.budgetLineItemId != item.id) continue;
-      final day = DateTime(t.dateOf.year, t.dateOf.month, t.dateOf.day);
-      if (day.isBefore(start) || day.isAfter(end)) continue;
+      if (t.dateOf.isBefore(start) || t.dateOf.isAfter(end)) continue;
       total += t.amount;
     }
     return total;
@@ -150,8 +148,8 @@ class BudgetController extends GetxController {
   ) {
     if (item.id == null) return [];
 
-    final start = _dayStart(budget.startDate);
-    final end = _dayEnd(budget.endDate);
+    final start = budget.startDate;
+    final end = budget.endDate;
 
     return transactions.where((t) {
       if (t.type != 'Expense') return false;
@@ -163,8 +161,7 @@ class BudgetController extends GetxController {
         return false;
       }
       if (t.budgetLineItemId != item.id) return false;
-      final day = DateTime(t.dateOf.year, t.dateOf.month, t.dateOf.day);
-      if (day.isBefore(start) || day.isAfter(end)) return false;
+      if (t.dateOf.isBefore(start) || t.dateOf.isAfter(end)) return false;
       return true;
     }).toList()
       ..sort((a, b) => b.dateOf.compareTo(a.dateOf));
@@ -180,8 +177,8 @@ class BudgetController extends GetxController {
     Budget budget,
     List<Transaction> transactions,
   ) {
-    final start = _dayStart(budget.startDate);
-    final end = _dayEnd(budget.endDate);
+    final start = budget.startDate;
+    final end = budget.endDate;
     double total = 0;
 
     for (final t in transactions) {
@@ -193,8 +190,7 @@ class BudgetController extends GetxController {
       )) {
         continue;
       }
-      final day = DateTime(t.dateOf.year, t.dateOf.month, t.dateOf.day);
-      if (day.isBefore(start) || day.isAfter(end)) continue;
+      if (t.dateOf.isBefore(start) || t.dateOf.isAfter(end)) continue;
       total += t.amount;
     }
     return total;
@@ -206,14 +202,13 @@ class BudgetController extends GetxController {
   DateTime _dayStart(DateTime date) =>
       DateTime(date.year, date.month, date.day);
 
-  DateTime _dayEnd(DateTime date) =>
-      DateTime(date.year, date.month, date.day, 23, 59, 59);
-
   int get budgetDayCount {
     final start = periodStart;
     final end = periodEnd;
     if (start == null || end == null) return 1;
-    return end.difference(start).inDays + 1;
+    final startDay = _dayStart(start);
+    final endDay = _dayStart(end);
+    return endDay.difference(startDay).inDays + 1;
   }
 
   double get dailyBudgetAllowance =>
@@ -230,13 +225,15 @@ class BudgetController extends GetxController {
     final end = periodEnd;
     if (start == null || end == null) return 0;
 
+    final startDay = _dayStart(start);
+    final endDay = _dayStart(end);
     final monthStart = DateTime(year, month, 1);
     final monthEnd = DateTime(year, month + 1, 0);
     var effectiveStart =
-        monthStart.isBefore(start) ? start : _dayStart(monthStart);
-    var effectiveEnd = _dayEnd(monthEnd);
-    if (effectiveEnd.isAfter(end)) {
-      effectiveEnd = end;
+        monthStart.isBefore(startDay) ? startDay : monthStart;
+    var effectiveEnd = monthEnd;
+    if (effectiveEnd.isAfter(endDay)) {
+      effectiveEnd = endDay;
     }
     if (effectiveStart.isAfter(effectiveEnd)) return 0;
     return effectiveEnd.difference(effectiveStart).inDays + 1;
@@ -249,9 +246,7 @@ class BudgetController extends GetxController {
       daysInBudgetMonth(year, month) > 0;
 
   bool transactionFitsBudgetPeriod(Budget budget, DateTime date) {
-    final day = _dayStart(date);
-    return !day.isBefore(_dayStart(budget.startDate)) &&
-        !day.isAfter(_dayEnd(budget.endDate));
+    return !date.isBefore(budget.startDate) && !date.isAfter(budget.endDate);
   }
 
   int? transferFeeLineItemIdForDate(DateTime date) {
@@ -278,17 +273,15 @@ class BudgetController extends GetxController {
       throw ArgumentError('Add at least one budget item.');
     }
 
-    final start = DateTime(startDate.year, startDate.month, startDate.day);
-    final end = DateTime(endDate.year, endDate.month, endDate.day);
-    if (end.isBefore(start)) {
-      throw ArgumentError('End date must be on or after start date.');
+    if (endDate.isBefore(startDate)) {
+      throw ArgumentError('End must be on or after start.');
     }
 
     await createBudgetUseCase.execute(
       userId: int.parse(userId),
       name: name.trim(),
-      startDate: start,
-      endDate: end,
+      startDate: startDate,
+      endDate: endDate,
       lineItems: withDefaultTransferFeeLineItem(
         lineItems
             .map(
@@ -316,17 +309,15 @@ class BudgetController extends GetxController {
       throw ArgumentError('Add at least one budget item.');
     }
 
-    final start = DateTime(startDate.year, startDate.month, startDate.day);
-    final end = DateTime(endDate.year, endDate.month, endDate.day);
-    if (end.isBefore(start)) {
-      throw ArgumentError('End date must be on or after start date.');
+    if (endDate.isBefore(startDate)) {
+      throw ArgumentError('End must be on or after start.');
     }
 
     await updateBudgetUseCase.execute(
       budgetId: budgetId,
       name: name.trim(),
-      startDate: start,
-      endDate: end,
+      startDate: startDate,
+      endDate: endDate,
       lineItems: lineItems
           .map(
             (item) => BudgetLineItem(

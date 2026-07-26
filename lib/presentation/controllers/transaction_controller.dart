@@ -484,7 +484,18 @@ class TransactionController extends GetxController {
       }
 
       if (periodStart != null && periodEnd != null) {
-        if (tDayStart.isBefore(periodStart) || tDayStart.isAfter(periodEnd)) {
+        final periodDayStart = DateTime(
+          periodStart.year,
+          periodStart.month,
+          periodStart.day,
+        );
+        final periodDayEnd = DateTime(
+          periodEnd.year,
+          periodEnd.month,
+          periodEnd.day,
+        );
+        if (tDayStart.isBefore(periodDayStart) ||
+            tDayStart.isAfter(periodDayEnd)) {
           continue;
         }
       }
@@ -529,7 +540,18 @@ class TransactionController extends GetxController {
 
       final tDayStart = DateTime(t.dateOf.year, t.dateOf.month, t.dateOf.day);
       if (periodStart != null && periodEnd != null) {
-        if (tDayStart.isBefore(periodStart) || tDayStart.isAfter(periodEnd)) {
+        final periodDayStart = DateTime(
+          periodStart.year,
+          periodStart.month,
+          periodStart.day,
+        );
+        final periodDayEnd = DateTime(
+          periodEnd.year,
+          periodEnd.month,
+          periodEnd.day,
+        );
+        if (tDayStart.isBefore(periodDayStart) ||
+            tDayStart.isAfter(periodDayEnd)) {
           continue;
         }
       }

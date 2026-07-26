@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../presentation/controllers/budget_controller.dart';
 import '../../presentation/controllers/transaction_controller.dart';
+import '../../presentation/util/budget_date_format.dart';
 import '../../presentation/util/budget_usage.dart';
 
 class BudgetWidgetService {
@@ -42,8 +43,8 @@ class BudgetWidgetService {
           'hasBudget': true,
           'name': budget.name,
           'dateRange':
-              '${DateFormat.yMMMd().format(budget.startDate)} – '
-              '${DateFormat.yMMMd().format(budget.endDate)}',
+              '${formatBudgetDateTime(budget.startDate)} – '
+              '${formatBudgetDateTime(budget.endDate)}',
           'total': formatter.format(totalAllocated),
           'spent': formatter.format(totalSpent),
           'remaining': formatter.format(remaining),

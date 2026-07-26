@@ -94,15 +94,33 @@ class Loans extends Table {
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+class Notes extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get userId => integer().customConstraint('REFERENCES users(id)')();
+  TextColumn get title => text()();
+  TextColumn get body => text()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+}
+
 // Database
 @DriftDatabase(
-  tables: [Users, Banks, Transactions, Limits, Budgets, BudgetLineItems, Loans],
+  tables: [
+    Users,
+    Banks,
+    Transactions,
+    Limits,
+    Budgets,
+    BudgetLineItems,
+    Loans,
+    Notes,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -120,6 +138,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 5) {
         await migrator.createTable(loans);
         await migrator.addColumn(transactions, transactions.loanId);
+      }
+      if (from < 6) {
+        await migrator.createTable(notes);
       }
     },
   );

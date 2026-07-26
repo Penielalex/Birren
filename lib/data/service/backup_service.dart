@@ -11,6 +11,7 @@ import '../db/bank_dao.dart';
 import '../db/budget_dao.dart';
 import '../db/limit_dao.dart';
 import '../db/loan_dao.dart';
+import '../db/note_dao.dart';
 import '../db/transaction_dao.dart';
 import '../db/user_dao.dart';
 import 'shared_prefs_service.dart';
@@ -22,6 +23,7 @@ class BackupService {
   final TransactionDao transactionDao;
   final BudgetDao budgetDao;
   final LoanDao loanDao;
+  final NoteDao noteDao;
   final LimitDao limitDao;
   final SharedPrefsService prefs;
 
@@ -32,6 +34,7 @@ class BackupService {
     required this.transactionDao,
     required this.budgetDao,
     required this.loanDao,
+    required this.noteDao,
     required this.limitDao,
     required this.prefs,
   });
@@ -69,6 +72,7 @@ class BackupService {
     final transactions = await transactionDao.getAllTransactions();
     final budgets = await budgetDao.getAllBudgets();
     final loans = await loanDao.getAllLoans();
+    final notes = await noteDao.getAllNotes();
     final limits = await limitDao.getAllLimits();
     final syncCheckpoints = await prefs.exportSyncCheckpoints();
 
@@ -90,6 +94,7 @@ class BackupService {
       'banks': banks.map((b) => b.toMap()).toList(),
       'transactions': transactions.map((t) => t.toMap()).toList(),
       'loans': loans.map((l) => l.toMap()).toList(),
+      'notes': notes.map((n) => n.toMap()).toList(),
       'budgets': budgets
           .map(
             (b) => {
@@ -141,6 +146,7 @@ class BackupService {
     await db.transaction(() async {
       await db.delete(db.transactions).go();
       await db.delete(db.loans).go();
+      await db.delete(db.notes).go();
       await db.delete(db.budgetLineItems).go();
       await db.delete(db.budgets).go();
       await db.delete(db.limits).go();
@@ -250,6 +256,21 @@ class BackupService {
             );
       }
 
+      for (final raw in data['notes'] as List<dynamic>? ?? []) {
+        final map = raw as Map<String, dynamic>;
+        await db.into(db.notes).insert(
+              NotesCompanion(
+                id: Value(map['id'] as int),
+                userId: Value(map['userId'] as int),
+                title: Value(map['title'] as String),
+                body: Value(map['body'] as String),
+                createdAt: Value(DateTime.parse(map['createdAt'] as String)),
+                updatedAt: Value(DateTime.parse(map['updatedAt'] as String)),
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
+      }
+
       for (final raw in data['limits'] as List<dynamic>? ?? []) {
         final map = raw as Map<String, dynamic>;
         await db.into(db.limits).insert(
@@ -276,6 +297,7 @@ class BackupService {
     await db.transaction(() async {
       await db.delete(db.transactions).go();
       await db.delete(db.loans).go();
+      await db.delete(db.notes).go();
       await db.delete(db.budgetLineItems).go();
       await db.delete(db.budgets).go();
       await db.delete(db.limits).go();

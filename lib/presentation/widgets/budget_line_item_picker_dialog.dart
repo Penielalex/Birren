@@ -56,10 +56,12 @@ Future<void> applyCategoryToSelectedTransactions({
       null,
       budgetLineItemId: budgetLineItemId,
       clearBudgetLineItemId: budgetLineItemId == null,
+      clearLoanId: true,
     );
   }
 
   transactionController.clearSelection();
+  AppSnackbar.showSuccess('Category updated');
 }
 
 void showBudgetLineItemDialog(

@@ -25,6 +25,7 @@ import 'data/db/transaction_dao.dart';
 import 'data/db/budget_dao.dart';
 import 'data/db/limit_dao.dart';
 import 'data/db/loan_dao.dart';
+import 'data/db/note_dao.dart';
 
 import 'data/repository_impl/user_repository_impl.dart';
 
@@ -35,6 +36,7 @@ import 'data/repository_impl/transaction_repository_impl.dart';
 import 'data/repository_impl/budget_repository_impl.dart';
 import 'data/repository_impl/limit_repository_impl.dart';
 import 'data/repository_impl/loan_repository_impl.dart';
+import 'data/repository_impl/note_repository_impl.dart';
 
 import 'app/user_usecases.dart';
 
@@ -45,6 +47,7 @@ import 'app/transaction_usecases.dart';
 import 'app/budget_usecases.dart';
 import 'app/limit_usecases.dart';
 import 'app/loan_usecases.dart';
+import 'app/note_usecases.dart';
 
 import 'presentation/controllers/user_controller.dart';
 
@@ -56,6 +59,7 @@ import 'presentation/controllers/budget_controller.dart';
 import 'presentation/controllers/app_navigation_controller.dart';
 import 'presentation/controllers/limit_controller.dart';
 import 'presentation/controllers/loan_controller.dart';
+import 'presentation/controllers/note_controller.dart';
 
 import 'data/service/shared_prefs_service.dart';
 
@@ -353,6 +357,17 @@ void main() async {
 
   Get.put(loanController);
 
+  final noteDao = NoteDao(db);
+  final noteRepository = NoteRepositoryImpl(dao: noteDao);
+  final noteController = NoteController(
+    prefs: prefs,
+    getNotesByUserIdUseCase: GetNotesByUserIdUseCase(noteRepository),
+    createNoteUseCase: CreateNoteUseCase(noteRepository),
+    updateNoteUseCase: UpdateNoteUseCase(noteRepository),
+    deleteNoteUseCase: DeleteNoteUseCase(noteRepository),
+  );
+  Get.put(noteController);
+
   final backupService = BackupService(
     db: db,
     userDao: userDao,
@@ -360,6 +375,7 @@ void main() async {
     transactionDao: transactionDao,
     budgetDao: budgetDao,
     loanDao: loanDao,
+    noteDao: noteDao,
     limitDao: limitDao,
     prefs: prefs,
   );

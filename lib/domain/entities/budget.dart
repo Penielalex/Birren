@@ -25,10 +25,7 @@ class Budget {
 
   bool get isActive => status == 'active';
 
-  bool get isExpired {
-    final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
-    return DateTime.now().isAfter(end);
-  }
+  bool get isExpired => DateTime.now().isAfter(endDate);
 
   double get totalAllocated =>
       lineItems.fold(0.0, (sum, item) => sum + item.allocatedAmount);

@@ -4,6 +4,7 @@ import 'package:birren/presentation/controllers/budget_controller.dart';
 import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
+import 'package:birren/presentation/widgets/category_picker_dialog.dart';
 import 'package:birren/presentation/widgets/transaction_card.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -70,10 +71,12 @@ class BudgetLineItemTransactionsPage extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 8),
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {
+                        final txn = filtered[index];
                         return TransactionCard(
-                          transaction: filtered[index],
+                          transaction: txn,
                           fromNotification: false,
-                          onSetCategoryPressed: () {},
+                          onSetCategoryPressed: () =>
+                              editTransactionCategory(context, txn),
                         );
                       },
                     ),

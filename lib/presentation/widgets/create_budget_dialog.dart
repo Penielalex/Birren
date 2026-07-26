@@ -3,11 +3,11 @@ import 'package:birren/domain/entities/budget_line_item.dart';
 import 'package:birren/presentation/controllers/budget_controller.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
+import 'package:birren/presentation/util/budget_date_format.dart';
 import 'package:birren/presentation/widgets/app_snackbar.dart';
 import 'package:birren/presentation/widgets/custom_textfield.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 
 class _LineItemDraft {
   final int? itemId;
@@ -62,7 +62,13 @@ class _BudgetFormDialogState extends State<_BudgetFormDialog> {
     _startDate = budget?.startDate ??
         DateTime(DateTime.now().year, DateTime.now().month, 1);
     _endDate = budget?.endDate ??
-        DateTime(DateTime.now().year, DateTime.now().month + 1, 0);
+        DateTime(
+          DateTime.now().year,
+          DateTime.now().month + 1,
+          0,
+          23,
+          59,
+        );
 
     if (budget != null && budget.lineItems.isNotEmpty) {
       for (final item in budget.lineItems) {
@@ -95,32 +101,62 @@ class _BudgetFormDialogState extends State<_BudgetFormDialog> {
   }
 
   Future<void> _pickStartDate() async {
-    final picked = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: _startDate,
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
     );
-    if (picked != null) {
-      setState(() {
-        _startDate = DateTime(picked.year, picked.month, picked.day);
-      });
-    }
+    if (pickedDate == null || !mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_startDate),
+    );
+    if (pickedTime == null || !mounted) return;
+
+    setState(() {
+      _startDate = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+      if (_endDate.isBefore(_startDate)) {
+        _endDate = _startDate.add(const Duration(hours: 1));
+      }
+    });
   }
 
   Future<void> _pickEndDate() async {
-    final picked = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
-      initialDate: _endDate,
-      firstDate: _startDate,
+      initialDate: _endDate.isBefore(_startDate) ? _startDate : _endDate,
+      firstDate: DateTime(_startDate.year, _startDate.month, _startDate.day),
       lastDate: DateTime(2030),
     );
-    if (picked != null) {
-      setState(() {
-        _endDate = DateTime(picked.year, picked.month, picked.day);
-      });
-    }
+    if (pickedDate == null || !mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_endDate),
+    );
+    if (pickedTime == null || !mounted) return;
+
+    setState(() {
+      _endDate = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
   }
+
+  String _formatDateTime(DateTime date) =>
+      formatBudgetDateTime(date, context: context);
 
   Future<void> _submit() async {
     final items = <BudgetLineItem>[];
@@ -197,9 +233,10 @@ class _BudgetFormDialogState extends State<_BudgetFormDialog> {
                         hintText: 'Budget name',
                       ),
                       const SizedBox(height: 12),
-                      Row(
+                      Column(
                         children: [
-                          Expanded(
+                          SizedBox(
+                            width: double.infinity,
                             child: OutlinedButton(
                               onPressed: _pickStartDate,
                               style: OutlinedButton.styleFrom(
@@ -207,13 +244,14 @@ class _BudgetFormDialogState extends State<_BudgetFormDialog> {
                                 side: const BorderSide(color: AppColors.accent),
                               ),
                               child: Text(
-                                'Start: ${DateFormat.yMMMd().format(_startDate)}',
+                                'Start: ${_formatDateTime(_startDate)}',
                                 style: AppTextStyles.body1,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
                             child: OutlinedButton(
                               onPressed: _pickEndDate,
                               style: OutlinedButton.styleFrom(
@@ -221,7 +259,7 @@ class _BudgetFormDialogState extends State<_BudgetFormDialog> {
                                 side: const BorderSide(color: AppColors.accent),
                               ),
                               child: Text(
-                                'End: ${DateFormat.yMMMd().format(_endDate)}',
+                                'End: ${_formatDateTime(_endDate)}',
                                 style: AppTextStyles.body1,
                               ),
                             ),
