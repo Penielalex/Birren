@@ -230,6 +230,9 @@ void main() async {
   final linkInternalTransferToCashUseCase =
       LinkInternalTransferToCashUseCase(transactionRepository);
 
+  final splitTransferFeeFromExpenseUseCase =
+      SplitTransferFeeFromExpenseUseCase(transactionRepository);
+
   final deleteTransactionUseCase = DeleteTransactionUseCase(transactionRepository);
 
 
@@ -249,6 +252,8 @@ void main() async {
     linkInternalTransferUseCase: linkInternalTransferUseCase,
 
     linkInternalTransferToCashUseCase: linkInternalTransferToCashUseCase,
+
+    splitTransferFeeFromExpenseUseCase: splitTransferFeeFromExpenseUseCase,
 
     deleteTransactionUseCase: deleteTransactionUseCase,
 
@@ -335,10 +340,14 @@ void main() async {
       CreateLoanFromDisbursementUseCase(loanRepository);
   final createLoanFromLendUseCase =
       CreateLoanFromLendUseCase(loanRepository);
+  final splitSharedExpenseUseCase =
+      SplitSharedExpenseUseCase(loanRepository);
   final linkRepaymentToLoanUseCase =
       LinkRepaymentToLoanUseCase(loanRepository);
   final linkReturnToLentLoanUseCase =
       LinkReturnToLentLoanUseCase(loanRepository);
+  final allocatePaymentAcrossLoansUseCase =
+      AllocatePaymentAcrossLoansUseCase(loanRepository);
   final closeLoanUseCase = CloseLoanUseCase(loanRepository);
   final getReturnTransactionsForLoanUseCase =
       GetReturnTransactionsForLoanUseCase(loanRepository);
@@ -349,8 +358,10 @@ void main() async {
     getOpenLoansByUserIdUseCase: getOpenLoansByUserIdUseCase,
     createLoanFromDisbursementUseCase: createLoanFromDisbursementUseCase,
     createLoanFromLendUseCase: createLoanFromLendUseCase,
+    splitSharedExpenseUseCase: splitSharedExpenseUseCase,
     linkRepaymentToLoanUseCase: linkRepaymentToLoanUseCase,
     linkReturnToLentLoanUseCase: linkReturnToLentLoanUseCase,
+    allocatePaymentAcrossLoansUseCase: allocatePaymentAcrossLoansUseCase,
     closeLoanUseCase: closeLoanUseCase,
     getReturnTransactionsForLoanUseCase: getReturnTransactionsForLoanUseCase,
   );

@@ -4,6 +4,7 @@ class Transaction {
   final String category;  // Category of transaction (e.g., Food, Rent)
   final String type;      // Type of transaction (e.g., income, expense)
   final double amount;    // Transaction amount
+  final int? splitGroupId; // Pieces created from one original SMS transaction
   final int? transferId; // Linked counterpart for internal transfers
   final int? budgetLineItemId; // Which budget line item this expense counts against
   final int? loanId; // Linked loan for disbursements or returns
@@ -17,6 +18,7 @@ class Transaction {
     required this.category,
     required this.type,
     required this.amount,
+    this.splitGroupId,
     this.transferId,
     this.budgetLineItemId,
     this.loanId,
@@ -33,6 +35,7 @@ class Transaction {
       category: map['category'] as String,
       type: map['type'] as String,
       amount: (map['amount'] as num).toDouble(),
+      splitGroupId: map['splitGroupId'] as int?,
       transferId: map['transferId'] as int?,
       budgetLineItemId: map['budgetLineItemId'] as int?,
       loanId: map['loanId'] as int?,
@@ -50,6 +53,7 @@ class Transaction {
       'category': category,
       'type': type,
       'amount': amount,
+      'splitGroupId': splitGroupId,
       'transferId': transferId,
       'budgetLineItemId': budgetLineItemId,
       'loanId': loanId,

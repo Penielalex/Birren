@@ -1,7 +1,9 @@
+import 'package:birren/domain/entities/transaction.dart';
 import 'package:birren/presentation/controllers/budget_controller.dart';
 import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
+import 'package:birren/presentation/widgets/app_dialog.dart';
 import 'package:birren/presentation/widgets/app_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -107,75 +109,224 @@ void showBudgetLineItemDialog(
 
   final applicableItems =
       budget.lineItems.where((item) => item.id != null).toList();
+  final feeLineItemId =
+      budgetController.transferFeeLineItemIdForDate(
+        selectedTransactions.first.dateOf,
+      );
 
-  showDialog(
+  showAppDialog(
     context: context,
     builder: (dialogContext) {
-      return Dialog(
-        backgroundColor: AppColors.background,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 420, maxWidth: 400),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Deduct from budget item', style: AppTextStyles.headline1),
-                const SizedBox(height: 8),
-                Text(
-                  'Which budget item should this expense decrease?',
-                  style: AppTextStyles.body1,
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: applicableItems.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final item = applicableItems[index];
-                      final spent = budgetController.spentForLineItemInBudget(
-                        budget,
-                        item,
-                        transactionController.transactions,
-                      );
-                      final remaining = item.allocatedAmount - spent;
+      return AppDialog(
+        title: 'Choose budget item',
+        subtitle: 'Which budget item should this expense decrease?',
+        expandBody: true,
+        scrollable: false,
+        maxHeight: 480,
+        actions: [
+          AppDialogActions.cancel(dialogContext),
+        ],
+        child: ListView.separated(
+          itemCount: applicableItems.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 4),
+          itemBuilder: (context, index) {
+            final item = applicableItems[index];
+            final spent = budgetController.spentForLineItemInBudget(
+              budget,
+              item,
+              transactionController.transactions,
+            );
+            final remaining = item.allocatedAmount - spent;
 
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(item.name, style: AppTextStyles.body1),
-                        subtitle: Text(
-                          'Spent ${formatter.format(spent)} / '
-                          '${formatter.format(item.allocatedAmount)} · '
-                          '${formatter.format(remaining)} left',
-                          style: AppTextStyles.body1,
-                        ),
-                        trailing: const Icon(Icons.remove_circle_outline),
-                        onTap: () async {
-                          await applyCategoryToSelectedTransactions(
-                            categoryIndex: categoryIndex,
-                            budgetLineItemId: item.id,
-                          );
-                          if (dialogContext.mounted) {
-                            Navigator.pop(dialogContext);
-                          }
-                        },
-                      );
-                    },
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    child: Text('Cancel', style: AppTextStyles.smallButton2),
-                  ),
-                ),
-              ],
-            ),
-          ),
+            return AppDialogOptionTile(
+              title: item.name,
+              subtitle:
+                  'Spent ${formatter.format(spent)} / '
+                  '${formatter.format(item.allocatedAmount)} · '
+                  '${formatter.format(remaining)} left',
+              trailing: const Icon(
+                Icons.remove_circle_outline_rounded,
+                color: AppColors.mutedText,
+                size: 20,
+              ),
+              onTap: () async {
+                final canOfferFeeSplit = feeLineItemId != null &&
+                    item.id != feeLineItemId &&
+                    selectedTransactions.length == 1 &&
+                    selectedTransactions.first.type == 'Expense' &&
+                    selectedTransactions.first.id != null &&
+                    transactionController
+                            .transactionsInSplitGroup(
+                              selectedTransactions.first,
+                            )
+                            .length <=
+                        1;
+
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+
+                if (canOfferFeeSplit) {
+                  await _showOptionalTransferFeeDialog(
+                    context: context,
+                    expense: selectedTransactions.first,
+                    categoryIndex: categoryIndex,
+                    principalBudgetLineItemId: item.id!,
+                    principalBudgetLineItemName: item.name,
+                    feeBudgetLineItemId: feeLineItemId,
+                  );
+                } else {
+                  await applyCategoryToSelectedTransactions(
+                    categoryIndex: categoryIndex,
+                    budgetLineItemId: item.id,
+                  );
+                }
+              },
+            );
+          },
         ),
       );
     },
   );
+}
+
+Future<void> _showOptionalTransferFeeDialog({
+  required BuildContext context,
+  required Transaction expense,
+  required String categoryIndex,
+  required int principalBudgetLineItemId,
+  required String principalBudgetLineItemName,
+  required int feeBudgetLineItemId,
+}) async {
+  final formatter = NumberFormat('#,##0.00');
+  final feeController = TextEditingController();
+  var saving = false;
+
+  await showAppDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          final fee = double.tryParse(
+                feeController.text.trim().replaceAll(',', ''),
+              ) ??
+              0;
+          final principal = expense.amount - fee;
+          final feeValid = fee > 0 && fee < expense.amount;
+
+          return AppDialog(
+            title: 'Transfer fee?',
+            subtitle:
+                'Assigning ${formatter.format(expense.amount)} birr to '
+                '$principalBudgetLineItemName. Peel off a fee if this total '
+                'includes service / transfer charges.',
+            scrollable: true,
+            maxHeight: 420,
+            actions: [
+              AppDialogActions.cancel(
+                dialogContext,
+                label: 'No fee',
+                enabled: !saving,
+                onPressed: () async {
+                  await applyCategoryToSelectedTransactions(
+                    categoryIndex: categoryIndex,
+                    budgetLineItemId: principalBudgetLineItemId,
+                  );
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                  }
+                },
+              ),
+              AppDialogActions.primary(
+                label: feeValid ? 'Split fee' : 'Save',
+                isLoading: saving,
+                onPressed: () async {
+                  setDialogState(() => saving = true);
+                  try {
+                    if (feeValid) {
+                      final transactionController =
+                          Get.find<TransactionController>();
+                      await transactionController
+                          .splitTransferFeeFromExpense(
+                        expense: expense,
+                        feeAmount: fee,
+                        principalCategory: categoryIndex,
+                        principalBudgetLineItemId: principalBudgetLineItemId,
+                        feeBudgetLineItemId: feeBudgetLineItemId,
+                      );
+                      transactionController.clearSelection();
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext);
+                      }
+                      AppSnackbar.showSuccess(
+                        'Split: ${formatter.format(principal)} → '
+                        '$principalBudgetLineItemName, '
+                        '${formatter.format(fee)} → Transfer Fee',
+                      );
+                    } else if (fee == 0) {
+                      await applyCategoryToSelectedTransactions(
+                        categoryIndex: categoryIndex,
+                        budgetLineItemId: principalBudgetLineItemId,
+                      );
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext);
+                      }
+                    } else {
+                      AppSnackbar.showError(
+                        'Fee must be greater than 0 and less than '
+                        '${formatter.format(expense.amount)}',
+                      );
+                    }
+                  } catch (e) {
+                    AppSnackbar.showError(e.toString());
+                  } finally {
+                    if (dialogContext.mounted) {
+                      setDialogState(() => saving = false);
+                    }
+                  }
+                },
+              ),
+            ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Total ${formatter.format(expense.amount)} birr',
+                  style: AppTextStyles.midBody1.copyWith(
+                    color: AppColors.accent,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Transfer / service fee', style: AppTextStyles.body1),
+                const SizedBox(height: 8),
+                AppDialogField(
+                  controller: feeController,
+                  hintText: '0.00 (optional)',
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  feeValid
+                      ? '${formatter.format(principal)} → '
+                          '$principalBudgetLineItemName\n'
+                          '${formatter.format(fee)} → Transfer Fee'
+                      : 'Leave empty or 0 to put the full amount on '
+                          '$principalBudgetLineItemName.',
+                  style: AppTextStyles.lightBody1.copyWith(
+                    color: AppColors.mutedText,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+
+  feeController.dispose();
 }

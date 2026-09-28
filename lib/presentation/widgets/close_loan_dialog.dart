@@ -7,6 +7,7 @@ import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
 import 'package:birren/presentation/util/budget_defaults.dart';
 import 'package:birren/presentation/util/category.dart';
+import 'package:birren/presentation/widgets/app_dialog.dart';
 import 'package:birren/presentation/widgets/app_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -35,7 +36,7 @@ void showCloseLoanDialog(BuildContext context, Loan loan) {
   String? selectedCategoryIndex;
   int? selectedLineItemId;
 
-  showDialog(
+  showAppDialog(
     context: context,
     builder: (dialogContext) {
       return StatefulBuilder(
@@ -46,223 +47,180 @@ void showCloseLoanDialog(BuildContext context, Loan loan) {
                   .toList() ??
               [];
 
-          return Dialog(
-            backgroundColor: AppColors.background,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 560, maxWidth: 420),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('Close Loan', style: AppTextStyles.headline1),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Remaining balance ${formatter.format(remaining)} will be '
-                      'recorded as an expense.',
-                      style: AppTextStyles.body1,
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Bank', style: AppTextStyles.midBody1),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<int>(
-                      value: selectedBankId,
-                      dropdownColor: AppColors.background,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
+          return AppDialog(
+            title: 'Close loan',
+            subtitle:
+                'Remaining balance ${formatter.format(remaining)} will be '
+                'recorded as an expense.',
+            expandBody: true,
+            scrollable: true,
+            maxHeight: 600,
+            actions: [
+              AppDialogActions.cancel(dialogContext),
+              AppDialogActions.primary(
+                label: 'Close loan',
+                onPressed: () async {
+                  if (selectedBankId == null) {
+                    AppSnackbar.showError('Choose a bank');
+                    return;
+                  }
+                  if (selectedCategoryIndex == null) {
+                    AppSnackbar.showError('Choose a category');
+                    return;
+                  }
+
+                  int? lineItemId = selectedLineItemId;
+                  if (isTransferFeeCategory(
+                    selectedCategoryIndex!,
+                    'Expense',
+                  )) {
+                    lineItemId ??= budgetController
+                        .transferFeeLineItemIdForDate(DateTime.now());
+                  } else if (lineItems.isNotEmpty && lineItemId == null) {
+                    AppSnackbar.showError('Choose a budget line item');
+                    return;
+                  }
+
+                  try {
+                    await loanController.closeLoanManually(
+                      loan: loan,
+                      transactions: transactionController.transactions,
+                      bankId: selectedBankId!,
+                      category: selectedCategoryIndex!,
+                      budgetLineItemId: lineItemId,
+                    );
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
+                    AppSnackbar.showSuccess('Loan closed');
+                  } catch (e) {
+                    AppSnackbar.showError(e.toString());
+                  }
+                },
+              ),
+            ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Bank', style: AppTextStyles.midBody1),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: selectedBankId,
+                  dropdownColor: AppColors.surface,
+                  decoration: appDialogInputDecoration(),
+                  items: bankController.banks
+                      .map(
+                        (bank) => DropdownMenuItem(
+                          value: bank.id,
+                          child: Text(
+                            bank.displayName ?? bank.bankName,
+                            style: AppTextStyles.body1,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => selectedBankId = value),
+                ),
+                const SizedBox(height: 16),
+                Text('Expense category', style: AppTextStyles.midBody1),
+                const SizedBox(height: 8),
+                Builder(
+                  builder: (context) {
+                    final selectableIndices = <int>[
+                      for (var i = 0; i < expenseCategories.length; i++)
+                        if (i != expenseInternalTransferIndex) i,
+                    ];
+
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: 0.95,
                       ),
-                      items: bankController.banks
-                          .map(
-                            (bank) => DropdownMenuItem(
-                              value: bank.id,
-                              child: Text(
-                                bank.displayName ?? bank.bankName,
-                                style: AppTextStyles.body1,
+                      itemCount: selectableIndices.length,
+                      itemBuilder: (context, listIndex) {
+                        final index = selectableIndices[listIndex];
+                        final category = expenseCategories[index];
+                        final isSelected = selectedCategoryIndex == '$index';
+
+                        return Material(
+                          color: isSelected
+                              ? category.color.withValues(alpha: 0.45)
+                              : category.color.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              setState(() {
+                                selectedCategoryIndex = '$index';
+                                if (isTransferFeeCategory(
+                                  selectedCategoryIndex!,
+                                  'Expense',
+                                )) {
+                                  selectedLineItemId = budgetController
+                                      .transferFeeLineItemIdForDate(
+                                    DateTime.now(),
+                                  );
+                                } else {
+                                  selectedLineItemId = null;
+                                }
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    category.icon,
+                                    color: category.color,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    category.name,
+                                    style: AppTextStyles.body1
+                                        .copyWith(fontSize: 11),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
                             ),
-                          )
-                          .toList(),
-                      onChanged: (value) =>
-                          setState(() => selectedBankId = value),
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Expense category', style: AppTextStyles.midBody1),
-                    const SizedBox(height: 8),
-                    Builder(
-                      builder: (context) {
-                        final selectableIndices = <int>[
-                          for (var i = 0; i < expenseCategories.length; i++)
-                            if (i != expenseInternalTransferIndex) i,
-                        ];
-
-                        return SizedBox(
-                          height: 200,
-                          child: GridView.builder(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              mainAxisSpacing: 8,
-                              crossAxisSpacing: 8,
-                              childAspectRatio: 0.95,
-                            ),
-                            itemCount: selectableIndices.length,
-                            itemBuilder: (context, listIndex) {
-                              final index = selectableIndices[listIndex];
-                              final category = expenseCategories[index];
-                              final isSelected =
-                                  selectedCategoryIndex == '$index';
-
-                              return GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    selectedCategoryIndex = '$index';
-                                    if (isTransferFeeCategory(
-                                      selectedCategoryIndex!,
-                                      'Expense',
-                                    )) {
-                                      selectedLineItemId = budgetController
-                                          .transferFeeLineItemIdForDate(
-                                        DateTime.now(),
-                                      );
-                                    } else {
-                                      selectedLineItemId = null;
-                                    }
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? category.color.withOpacity(0.5)
-                                        : category.color.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: isSelected
-                                        ? Border.all(color: Colors.white)
-                                        : null,
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        category.icon,
-                                        color: category.color,
-                                        size: 24,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        category.name,
-                                        style: AppTextStyles.body1.copyWith(
-                                          fontSize: 11,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
                           ),
                         );
                       },
-                    ),
-                    if (selectedCategoryIndex != null &&
-                        !isTransferFeeCategory(
-                          selectedCategoryIndex!,
-                          'Expense',
-                        ) &&
-                        lineItems.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Text('Budget line item', style: AppTextStyles.midBody1),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: ListView.separated(
-                          itemCount: lineItems.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final item = lineItems[index];
-                            final isSelected = selectedLineItemId == item.id;
-
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              selected: isSelected,
-                              title: Text(item.name, style: AppTextStyles.body1),
-                              onTap: () => setState(
-                                () => selectedLineItemId = item.id,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(dialogContext),
-                          child: Text(
-                            'Cancel',
-                            style: AppTextStyles.smallButton2,
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () async {
-                            if (selectedBankId == null) {
-                              AppSnackbar.showError('Choose a bank');
-                              return;
-                            }
-                            if (selectedCategoryIndex == null) {
-                              AppSnackbar.showError('Choose a category');
-                              return;
-                            }
-
-                            int? lineItemId = selectedLineItemId;
-                            if (isTransferFeeCategory(
-                              selectedCategoryIndex!,
-                              'Expense',
-                            )) {
-                              lineItemId ??= budgetController
-                                  .transferFeeLineItemIdForDate(DateTime.now());
-                            } else if (lineItems.isNotEmpty &&
-                                lineItemId == null) {
-                              AppSnackbar.showError(
-                                'Choose a budget line item',
-                              );
-                              return;
-                            }
-
-                            try {
-                              await loanController.closeLoanManually(
-                                loan: loan,
-                                transactions:
-                                    transactionController.transactions,
-                                bankId: selectedBankId!,
-                                category: selectedCategoryIndex!,
-                                budgetLineItemId: lineItemId,
-                              );
-                              if (dialogContext.mounted) {
-                                Navigator.pop(dialogContext);
-                              }
-                              AppSnackbar.showSuccess('Loan closed');
-                            } catch (e) {
-                              AppSnackbar.showError(e.toString());
-                            }
-                          },
-                          child: Text(
-                            'Close loan',
-                            style: AppTextStyles.smallButton1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              ),
+                if (selectedCategoryIndex != null &&
+                    !isTransferFeeCategory(
+                      selectedCategoryIndex!,
+                      'Expense',
+                    ) &&
+                    lineItems.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text('Budget line item', style: AppTextStyles.midBody1),
+                  const SizedBox(height: 8),
+                  ...lineItems.map((item) {
+                    final isSelected = selectedLineItemId == item.id;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: AppDialogOptionTile(
+                        title: item.name,
+                        selected: isSelected,
+                        onTap: () =>
+                            setState(() => selectedLineItemId = item.id),
+                      ),
+                    );
+                  }),
+                ],
+              ],
             ),
           );
         },
@@ -272,26 +230,11 @@ void showCloseLoanDialog(BuildContext context, Loan loan) {
 }
 
 Future<void> _closeWithoutWriteOff(BuildContext context, Loan loan) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppConfirmDialog(
     context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: AppColors.background,
-      title: Text('Close loan?', style: AppTextStyles.headline1),
-      content: Text(
-        'This loan is fully repaid. Close it now?',
-        style: AppTextStyles.body1,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text('Cancel', style: AppTextStyles.smallButton2),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: Text('Close', style: AppTextStyles.smallButton1),
-        ),
-      ],
-    ),
+    title: 'Close loan?',
+    message: 'This loan is fully repaid. Close it now?',
+    confirmLabel: 'Close',
   );
 
   if (confirmed != true) return;

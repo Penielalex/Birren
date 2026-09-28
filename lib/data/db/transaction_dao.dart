@@ -23,6 +23,7 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
             category: row.category,
             type: row.type,
             amount: row.amount,
+            splitGroupId: row.splitGroupId,
             transferId: row.transferId,
             budgetLineItemId: row.budgetLineItemId,
             loanId: row.loanId,
@@ -46,6 +47,7 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
             category: row.category,
             type: row.type,
             amount: row.amount,
+            splitGroupId: row.splitGroupId,
             transferId: row.transferId,
             budgetLineItemId: row.budgetLineItemId,
             loanId: row.loanId,
@@ -66,6 +68,7 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
         category: Value(transaction.category),
         type: Value(transaction.type),
         amount: Value(transaction.amount),
+        splitGroupId: Value(transaction.splitGroupId),
         transferId: Value(transaction.transferId),
         budgetLineItemId: Value(transaction.budgetLineItemId),
         loanId: Value(transaction.loanId),
@@ -167,6 +170,68 @@ class TransactionDao extends DatabaseAccessor<AppDatabase>
           ),
         );
       }
+    });
+  }
+
+  /// Splits one expense into principal + transfer-fee pieces that share a
+  /// [splitGroupId]. Bank balance is unchanged (same total outflow).
+  Future<void> splitTransferFeeFromExpense({
+    required int expenseId,
+    required double principalAmount,
+    required double feeAmount,
+    required String principalCategory,
+    required int principalBudgetLineItemId,
+    required int feeBudgetLineItemId,
+  }) async {
+    if (principalAmount <= 0 || feeAmount <= 0) {
+      throw ArgumentError('Principal and fee must both be greater than 0');
+    }
+
+    await db.transaction(() async {
+      final now = DateTime.now();
+      final original = await (select(transactions)
+            ..where((t) => t.id.equals(expenseId)))
+          .getSingle();
+
+      if (original.type != 'Expense') {
+        throw StateError('Only expenses can include a transfer fee split');
+      }
+
+      final total = double.parse(
+        (principalAmount + feeAmount).toStringAsFixed(2),
+      );
+      if ((total - original.amount).abs() > 0.05) {
+        throw ArgumentError(
+          'Principal + fee must equal ${original.amount}',
+        );
+      }
+
+      final splitGroupId = original.splitGroupId ?? original.id;
+
+      await (update(transactions)..where((t) => t.id.equals(expenseId))).write(
+        TransactionsCompanion(
+          amount: Value(principalAmount),
+          category: Value(principalCategory),
+          budgetLineItemId: Value(principalBudgetLineItemId),
+          splitGroupId: Value(splitGroupId),
+          loanId: const Value(null),
+          updatedAt: Value(now),
+        ),
+      );
+
+      await into(transactions).insert(
+        TransactionsCompanion(
+          bankId: Value(original.bankId),
+          category: Value('$expenseTransferFeeIndex'),
+          type: const Value('Expense'),
+          amount: Value(feeAmount),
+          splitGroupId: Value(splitGroupId),
+          budgetLineItemId: Value(feeBudgetLineItemId),
+          dateOf: Value(original.dateOf),
+          createdAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
     });
   }
 

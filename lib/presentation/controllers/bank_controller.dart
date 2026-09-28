@@ -119,96 +119,109 @@ class BankController extends GetxController {
       return;
     }
 
-    isAddingBank.value = true;
     final id = await prefs.getId();
-    logger.i("${int.parse(id!)}");
-    final amount = await smsService.fetchLastAmount(sender: bankName);
-    if(amount != null) {
-      logger.i("${amount == null}");
+    if (id == null) {
+      AppSnackbar.showError('User not logged in');
+      return;
+    }
+
+    final allowed = await smsService.requestPermission();
+    if (!allowed) {
+      AppSnackbar.showError(
+        'SMS permission is required to read your bank balance and transactions. '
+        'Enable it in Settings → Apps → Birren → Permissions.',
+      );
+      return;
+    }
+
+    isAddingBank.value = true;
+    try {
+      final amount = await smsService.fetchLastAmount(sender: bankName);
+      final balance = (amount?['balanceAmount'] as num?)?.toDouble() ?? 0.0;
+      if (amount == null) {
+        logger.i('No balance SMS for $bankName; adding account with balance 0');
+      } else {
+        logger.i(
+          'Using latest SMS balance for $bankName: $balance '
+          '(import cutoff $importFromDate does not affect balance)',
+        );
+      }
+
       final now = DateTime.now();
       final bank = Bank(
-        userId: int.parse(id!),
+        userId: int.parse(id),
         bankName: bankName,
         displayName: displayName,
-        balance: amount["balanceAmount"],
+        balance: balance,
         createdAt: now,
         updatedAt: now,
       );
-      try {
-        final logPath = await bankSmsLogService.exportBankSmsToMarkdown(
-          bankName: bankName,
-        );
-        if (logPath != null) {
-          logger.i('Bank SMS log file: $logPath');
-        }
 
-        await addBankUseCase.execute(bank);
-        await fetchBanks();
-        final newBank = banks.firstWhere(
-              (b) => b.bankName == bankName,
-          orElse: () => throw Exception("Newly added bank not found"),
-        );
-
-
-        final fromDate = DateTime(
-          importFromDate.year,
-          importFromDate.month,
-          importFromDate.day,
-        );
-        final result = await smsService.fetchTransactionsForBank(
-          address: newBank.bankName,
-          fromDate: fromDate,
-        );
-        if (result.isNotEmpty) {
-          for (var transaction in result) {
-            final rawType = transaction['transactionType'] as String?;
-            if (rawType == 'unknown') continue;
-            final String type;
-            if (rawType == 'income') {
-              type = 'Income';
-            } else if (rawType == 'withdrawal') {
-              type = 'Expense';
-            } else {
-              continue;
-            }
-            final tran = Transaction(
-                bankId: newBank.id!,
-                type: type,
-                category: noCategory,
-                amount: transaction['firstAmount'],
-                dateOf: transaction['date'],
-                createdAt: DateTime.now(),
-                updatedAt: DateTime.now()
-
-            );
-            await createTransactionUseCase.execute(tran);
-          }
-          final newestDate = result.first['date'] as DateTime;
-          await prefs.setLastFetch(newBank.bankName, newestDate);
-          logger.i(
-            'Saved last transaction date for ${newBank.bankName}: $newestDate',
-          );
-        } else {
-          await prefs.setLastFetch(newBank.bankName, fromDate);
-          logger.i(
-            'No actionable SMS from $fromDate for ${newBank.bankName}; '
-            'checkpoint set for incremental sync',
-          );
-        }
-        await Future.delayed(const Duration(seconds: 3));
-        isAddingBank.value = false;
-      } catch (e) {
-        logger.e("ereeee uuuu $e");
-        AppSnackbar.showError(e.toString());
-        await Future.delayed(const Duration(seconds: 3));
-        isAddingBank.value = false;
+      final logPath = await bankSmsLogService.exportBankSmsToMarkdown(
+        bankName: bankName,
+      );
+      if (logPath != null) {
+        logger.i('Bank SMS log file: $logPath');
       }
 
-    }else{
-      isAddingBank.value = false;
-      AppSnackbar.showError("Bank not found in messages");
-    }
+      await addBankUseCase.execute(bank);
+      await fetchBanks();
+      final newBank = banks.firstWhere(
+        (b) => b.bankName == bankName,
+        orElse: () => throw Exception('Newly added bank not found'),
+      );
 
+      // Keep full date+time — import cutoff is exact, balance is separate.
+      final result = await smsService.fetchTransactionsForBank(
+        address: newBank.bankName,
+        fromDate: importFromDate,
+      );
+      if (result.isNotEmpty) {
+        for (var transaction in result) {
+          final rawType = transaction['transactionType'] as String?;
+          if (rawType == 'unknown') continue;
+          final String type;
+          if (rawType == 'income') {
+            type = 'Income';
+          } else if (rawType == 'withdrawal') {
+            type = 'Expense';
+          } else {
+            continue;
+          }
+          final tran = Transaction(
+            bankId: newBank.id!,
+            type: type,
+            category: noCategory,
+            amount: transaction['firstAmount'],
+            dateOf: transaction['date'],
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+          await createTransactionUseCase.execute(tran);
+        }
+        final newestDate = result.first['date'] as DateTime;
+        await prefs.setLastFetch(newBank.bankName, newestDate);
+        logger.i(
+          'Saved last transaction date for ${newBank.bankName}: $newestDate',
+        );
+      } else {
+        await prefs.setLastFetch(newBank.bankName, importFromDate);
+        logger.i(
+          'No actionable SMS from $importFromDate for ${newBank.bankName}; '
+          'checkpoint set for incremental sync',
+        );
+        if (amount == null) {
+          AppSnackbar.showInfo(
+            'Added $bankName. No SMS found yet — sync later when messages arrive.',
+          );
+        }
+      }
+    } catch (e) {
+      logger.e('Failed to add bank $bankName: $e');
+      AppSnackbar.showError(e.toString());
+    } finally {
+      isAddingBank.value = false;
+    }
   }
 
   Future<void> editBank(Bank bank) async {

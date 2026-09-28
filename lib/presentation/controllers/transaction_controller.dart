@@ -13,6 +13,7 @@ import '../../domain/entities/bank.dart';
 import '../../domain/entities/transaction.dart';
 import '../util/category.dart';
 import '../util/cash_bank.dart';
+import '../widgets/app_snackbar.dart';
 import 'budget_controller.dart';
 
 
@@ -24,6 +25,7 @@ class TransactionController extends GetxController {
   final UpdateTransactionUseCase updateTransactionUseCase;
   final LinkInternalTransferUseCase linkInternalTransferUseCase;
   final LinkInternalTransferToCashUseCase linkInternalTransferToCashUseCase;
+  final SplitTransferFeeFromExpenseUseCase splitTransferFeeFromExpenseUseCase;
   final DeleteTransactionUseCase deleteTransactionUseCase;
   final GetBanksUseCase getBanksUseCase;
   final SmsService smsService;
@@ -36,6 +38,7 @@ class TransactionController extends GetxController {
     required this.updateTransactionUseCase,
     required this.linkInternalTransferUseCase,
     required this.linkInternalTransferToCashUseCase,
+    required this.splitTransferFeeFromExpenseUseCase,
     required this.deleteTransactionUseCase,
     required this.getBanksUseCase,
     required this.prefs,
@@ -145,6 +148,13 @@ class TransactionController extends GetxController {
 
     isLoading.value = true;
     try {
+      final allowed = await smsService.requestPermission();
+      if (!allowed) {
+        AppSnackbar.showError(
+          'SMS permission is required to sync bank balances and transactions.',
+        );
+        return;
+      }
 
       final result = await getBanksUseCase.execute();
       banks.assignAll(result);
@@ -153,6 +163,29 @@ class TransactionController extends GetxController {
      }else{
        for(var bank in banks){
          if (isCashBankName(bank.bankName)) continue;
+
+         // Always refresh the on-screen balance from the latest SMS,
+         // independent of the transaction sync cutoff.
+         final latest = await smsService.fetchLastAmount(sender: bank.bankName);
+         final latestBalance =
+             (latest?['balanceAmount'] as num?)?.toDouble();
+         if (latestBalance != null && latestBalance != bank.balance) {
+           logger.i(
+             'Updating ${bank.bankName} balance '
+             '${bank.balance} → $latestBalance from latest SMS',
+           );
+           final updated = Bank(
+             id: bank.id,
+             userId: bank.userId,
+             bankName: bank.bankName,
+             displayName: bank.displayName,
+             balance: latestBalance,
+             createdAt: bank.createdAt,
+             updatedAt: DateTime.now(),
+           );
+           await controller.editBank(updated);
+           bank = updated;
+         }
 
          var lastFetch = await prefs.getLastFetch(bank.bankName);
 
@@ -231,7 +264,7 @@ class TransactionController extends GetxController {
     await createTransactionUseCase.execute(transaction);
   }
 
-  Future<void> addManualCashTransaction({
+  Future<void> addManualTransaction({
     required Bank bank,
     required String type,
     required double amount,
@@ -239,14 +272,14 @@ class TransactionController extends GetxController {
     required String categoryIndex,
     int? budgetLineItemId,
   }) async {
-    if (!isCashBankName(bank.bankName)) {
-      throw ArgumentError('Manual entries are only supported for Cash');
-    }
     if (bank.id == null) {
-      throw StateError('Cash account is not saved yet');
+      throw StateError('Account is not saved yet');
     }
     if (type != 'Income' && type != 'Expense') {
       throw ArgumentError('Type must be Income or Expense');
+    }
+    if (amount <= 0) {
+      throw ArgumentError('Amount must be greater than 0');
     }
 
     await createTransactionUseCase.execute(
@@ -279,6 +312,24 @@ class TransactionController extends GetxController {
     await fetchSavedTransactions();
   }
 
+  @Deprecated('Use addManualTransaction')
+  Future<void> addManualCashTransaction({
+    required Bank bank,
+    required String type,
+    required double amount,
+    required DateTime dateOf,
+    required String categoryIndex,
+    int? budgetLineItemId,
+  }) =>
+      addManualTransaction(
+        bank: bank,
+        type: type,
+        amount: amount,
+        dateOf: dateOf,
+        categoryIndex: categoryIndex,
+        budgetLineItemId: budgetLineItemId,
+      );
+
   Future<void> editTransaction(
     int id,
     int? bankId,
@@ -304,6 +355,44 @@ class TransactionController extends GetxController {
       clearBudgetLineItemId: clearBudgetLineItemId,
       loanId: loanId,
       clearLoanId: clearLoanId,
+    );
+    await fetchSavedTransactions();
+  }
+
+  /// Peel a transfer/service fee off one expense into the Transfer Fee budget
+  /// line. Does not change bank balance (same total debit).
+  Future<void> splitTransferFeeFromExpense({
+    required Transaction expense,
+    required double feeAmount,
+    required String principalCategory,
+    required int principalBudgetLineItemId,
+    required int feeBudgetLineItemId,
+  }) async {
+    if (expense.id == null) {
+      throw StateError('Save the transaction first');
+    }
+    if (expense.type != 'Expense') {
+      throw ArgumentError('Only expenses can include a transfer fee');
+    }
+    if (feeAmount <= 0) {
+      throw ArgumentError('Fee must be greater than 0');
+    }
+    if (feeAmount >= expense.amount) {
+      throw ArgumentError('Fee must be less than the transaction amount');
+    }
+
+    final principal = double.parse(
+      (expense.amount - feeAmount).toStringAsFixed(2),
+    );
+    final fee = double.parse(feeAmount.toStringAsFixed(2));
+
+    await splitTransferFeeFromExpenseUseCase.execute(
+      expenseId: expense.id!,
+      principalAmount: principal,
+      feeAmount: fee,
+      principalCategory: principalCategory,
+      principalBudgetLineItemId: principalBudgetLineItemId,
+      feeBudgetLineItemId: feeBudgetLineItemId,
     );
     await fetchSavedTransactions();
   }
@@ -427,12 +516,30 @@ class TransactionController extends GetxController {
       return null;
     }
 
+    final splitTransactions = transactionsInSplitGroup(transaction);
+    final lookupAmount = splitTransactions.isEmpty
+        ? transaction.amount
+        : splitTransactions.fold<double>(0, (sum, t) => sum + t.amount);
+
     return smsService.findSmsForTransaction(
       bankAddress: bank.bankName,
       dateOf: transaction.dateOf,
-      amount: transaction.amount,
+      amount: lookupAmount,
       type: transaction.type,
     );
+  }
+
+  List<Transaction> transactionsInSplitGroup(Transaction transaction) {
+    final groupId = transaction.splitGroupId;
+    if (groupId == null) return const [];
+    return transactions
+        .where(
+          (t) =>
+              t.splitGroupId == groupId &&
+              t.bankId == transaction.bankId &&
+              t.type == transaction.type,
+        )
+        .toList();
   }
 
   Transaction? findLinkedTransaction(Transaction transaction) {

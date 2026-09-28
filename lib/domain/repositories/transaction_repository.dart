@@ -34,6 +34,14 @@ abstract class TransactionRepository {
     required double amount,
     required DateTime dateOf,
   });
+  Future<void> splitTransferFeeFromExpense({
+    required int expenseId,
+    required double principalAmount,
+    required double feeAmount,
+    required String principalCategory,
+    required int principalBudgetLineItemId,
+    required int feeBudgetLineItemId,
+  });
   Future<void> deleteTransaction(int id);
   Future<void> deleteTransactionWithBankId(int bankId);
 }

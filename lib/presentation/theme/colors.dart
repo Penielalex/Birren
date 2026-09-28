@@ -8,6 +8,12 @@ class AppColors {
 
   // Background
   static const Color background = Color(0xFF19173D);
+  /// Elevated panels / dialogs — slightly lighter than [background].
+  static const Color surface = Color(0xFF24214A);
+  static const Color surfaceBorder = Color(0x33FFFFFF);
+  static const Color fieldFill = Color(0x1AFFFFFF);
+  static const Color mutedText = Color(0xB3FFFFFF);
+  static const Color danger = Color(0xFFFF6B6B);
   //static const Color backgroundDark = Color(0xFF121212);
 
   // Text

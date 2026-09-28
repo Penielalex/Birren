@@ -5,7 +5,10 @@ import 'package:birren/presentation/controllers/transaction_controller.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
 import 'package:birren/presentation/util/category.dart';
+import 'package:birren/presentation/widgets/app_dialog.dart';
+import 'package:birren/presentation/widgets/app_snackbar.dart';
 import 'package:birren/presentation/widgets/category_picker_dialog.dart';
+import 'package:birren/presentation/widgets/shared_expense_split_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -73,6 +76,68 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
     return 'Budget item #${transaction.budgetLineItemId}';
   }
 
+  Future<void> _editAmount(BuildContext context, Transaction transaction) async {
+    if (transaction.id == null) return;
+    final controller = TextEditingController(
+      text: transaction.amount.toStringAsFixed(2),
+    );
+    final formatter = NumberFormat('#,##0.00');
+
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AppDialog(
+          title: 'Edit amount',
+          subtitle: 'Update the amount for this transaction',
+          showCloseButton: false,
+          scrollable: false,
+          maxHeight: 280,
+          actions: [
+            AppDialogActions.cancel(
+              dialogContext,
+              onPressed: () => Navigator.pop(dialogContext, false),
+            ),
+            AppDialogActions.primary(
+              label: 'Save',
+              onPressed: () => Navigator.pop(dialogContext, true),
+            ),
+          ],
+          child: AppDialogField(
+            controller: controller,
+            hintText: 'Amount in birr',
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            autofocus: true,
+          ),
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      controller.dispose();
+      return;
+    }
+
+    final parsed = double.tryParse(controller.text.replaceAll(',', '').trim());
+    controller.dispose();
+    if (parsed == null || parsed <= 0) {
+      AppSnackbar.showError('Enter a valid amount greater than 0');
+      return;
+    }
+    if ((parsed - transaction.amount).abs() < 0.0001) return;
+
+    await transactionController.editTransaction(
+      transaction.id!,
+      null,
+      null,
+      null,
+      parsed,
+      null,
+    );
+    AppSnackbar.showSuccess(
+      'Amount updated to ${formatter.format(parsed)} birr',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
@@ -86,6 +151,12 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
       final formattedAmount =
           NumberFormat('#,##0.00').format(transaction.amount);
       final budgetItemName = _budgetLineItemName(transaction);
+      final splitTransactions =
+          transactionController.transactionsInSplitGroup(transaction);
+      final splitTotal = splitTransactions.fold<double>(
+        0,
+        (sum, item) => sum + item.amount,
+      );
 
       return Scaffold(
         backgroundColor: AppColors.background,
@@ -157,7 +228,69 @@ class _TransactionDetailPageState extends State<TransactionDetailPage> {
                   style: AppTextStyles.smallButton1.copyWith(color: Colors.white),
                 ),
               ),
+              const SizedBox(height: 10),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white24),
+                ),
+                onPressed: () => _editAmount(context, transaction),
+                child: Text(
+                  'Edit amount',
+                  style: AppTextStyles.smallButton1.copyWith(color: Colors.white),
+                ),
+              ),
+              if (transaction.type == 'Expense') ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.accent,
+                    side: const BorderSide(color: AppColors.accent),
+                  ),
+                  onPressed: () =>
+                      showSharedExpenseSplitDialog(context, transaction),
+                  icon: const Icon(Icons.call_split, size: 18),
+                  label: Text(
+                    'Split shared expense',
+                    style: AppTextStyles.smallButton1
+                        .copyWith(color: AppColors.accent),
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
+              if (splitTransactions.length > 1) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.accent.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.call_split_rounded,
+                        color: AppColors.accent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'This transaction is one of '
+                          '${splitTransactions.length} entries split from the '
+                          'same ${NumberFormat('#,##0.00').format(splitTotal)} '
+                          'birr payment. They share the original SMS below.',
+                          style: AppTextStyles.body1.copyWith(height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               Text('Original SMS', style: AppTextStyles.headline1),
               const SizedBox(height: 8),
               _DetailCard(

@@ -38,6 +38,7 @@ class Transactions extends Table {
   TextColumn get category => text()();
   TextColumn get type => text()(); // income/expense
   RealColumn get amount => real()();
+  IntColumn get splitGroupId => integer().nullable()();
   IntColumn get transferId =>
       integer().nullable().customConstraint('NULL REFERENCES transactions(id)')();
   IntColumn get budgetLineItemId => integer().nullable()();
@@ -120,7 +121,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -141,6 +142,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 6) {
         await migrator.createTable(notes);
+      }
+      if (from < 7) {
+        await migrator.addColumn(transactions, transactions.splitGroupId);
       }
     },
   );

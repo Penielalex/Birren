@@ -127,6 +127,89 @@ class LoanDao extends DatabaseAccessor<AppDatabase> with _$LoanDaoMixin {
     });
   }
 
+  /// Splits one expense: your share stays on the original txn (budgeted);
+  /// friends' share becomes a new lent-loan expense.
+  Future<void> splitSharedExpense({
+    required int originalTransactionId,
+    required int userId,
+    required double yourShare,
+    required double friendsShare,
+    required String yourCategoryIndex,
+    int? budgetLineItemId,
+    String? counterpartyName,
+  }) async {
+    if (yourShare <= 0 || friendsShare <= 0) {
+      throw ArgumentError('Both your share and friends share must be > 0');
+    }
+
+    await db.transaction(() async {
+      final now = DateTime.now();
+      final original = await (select(transactions)
+            ..where((t) => t.id.equals(originalTransactionId)))
+          .getSingle();
+
+      if (original.type != 'Expense') {
+        throw StateError('Only expense transactions can be split');
+      }
+
+      // If this txn was already a lent loan, remove that loan first.
+      if (original.loanId != null) {
+        final loan = await (select(loans)
+              ..where((l) => l.id.equals(original.loanId!)))
+            .getSingleOrNull();
+        if (loan != null &&
+            loan.disbursementTransactionId == originalTransactionId) {
+          await (delete(loans)..where((l) => l.id.equals(loan.id))).go();
+        }
+      }
+
+      await (update(transactions)
+            ..where((t) => t.id.equals(originalTransactionId)))
+          .write(
+        TransactionsCompanion(
+          amount: Value(yourShare),
+          category: Value(yourCategoryIndex),
+          budgetLineItemId: budgetLineItemId != null
+              ? Value(budgetLineItemId)
+              : const Value(null),
+          loanId: const Value(null),
+          updatedAt: Value(now),
+        ),
+      );
+
+      final lendTxnId = await into(transactions).insert(
+        TransactionsCompanion(
+          bankId: Value(original.bankId),
+          category: Value('$expenseLendLoanIndex'),
+          type: const Value('Expense'),
+          amount: Value(friendsShare),
+          dateOf: Value(original.dateOf),
+          createdAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+
+      final loanId = await into(loans).insert(
+        LoansCompanion(
+          userId: Value(userId),
+          counterpartyName: Value(counterpartyName),
+          principalAmount: Value(friendsShare),
+          disbursementTransactionId: Value(lendTxnId),
+          status: const Value('open'),
+          createdAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+
+      await (update(transactions)..where((t) => t.id.equals(lendTxnId))).write(
+        TransactionsCompanion(
+          loanId: Value(loanId),
+          updatedAt: Value(now),
+        ),
+      );
+    });
+  }
+
   /// Links an expense repayment to a borrowed loan (money you received).
   Future<void> linkRepaymentToLoan({
     required int repaymentTransactionId,
@@ -159,6 +242,101 @@ class LoanDao extends DatabaseAccessor<AppDatabase> with _$LoanDaoMixin {
         updatedAt: Value(DateTime.now()),
       ),
     );
+  }
+
+  /// Splits one payment across one or more loans.
+  /// Keeps the original transaction for the first allocation and inserts
+  /// sibling transactions (same bank/date/type) for the rest, so a single
+  /// SMS repayment can cover multiple lent shares / loans.
+  Future<void> allocatePaymentAcrossLoans({
+    required int paymentTransactionId,
+    required List<({int loanId, double amount})> allocations,
+    required bool isReturn,
+  }) async {
+    if (allocations.isEmpty) {
+      throw ArgumentError('Select at least one loan');
+    }
+    for (final a in allocations) {
+      if (a.amount <= 0) {
+        throw ArgumentError('Each allocation must be greater than 0');
+      }
+    }
+
+    await db.transaction(() async {
+      final now = DateTime.now();
+      final original = await (select(transactions)
+            ..where((t) => t.id.equals(paymentTransactionId)))
+          .getSingle();
+
+      final expectedType = isReturn ? 'Income' : 'Expense';
+      if (original.type != expectedType) {
+        throw StateError(
+          isReturn
+              ? 'Returns must be income transactions'
+              : 'Repayments must be expense transactions',
+        );
+      }
+
+      final totalAllocated =
+          allocations.fold<double>(0, (sum, a) => sum + a.amount);
+      if (totalAllocated > original.amount + 0.05) {
+        throw ArgumentError(
+          'Allocated amounts cannot exceed the payment (${original.amount})',
+        );
+      }
+      final remainder = original.amount - totalAllocated;
+      final splitGroupId = original.splitGroupId ?? original.id;
+
+      final category =
+          isReturn ? '$incomeReturnsIndex' : '$expenseLoanIndex';
+      final first = allocations.first;
+
+      await (update(transactions)
+            ..where((t) => t.id.equals(paymentTransactionId)))
+          .write(
+        TransactionsCompanion(
+          amount: Value(first.amount),
+          category: Value(category),
+          splitGroupId: Value(splitGroupId),
+          loanId: Value(first.loanId),
+          budgetLineItemId: const Value(null),
+          updatedAt: Value(now),
+        ),
+      );
+
+      for (final allocation in allocations.skip(1)) {
+        await into(transactions).insert(
+          TransactionsCompanion(
+            bankId: Value(original.bankId),
+            category: Value(category),
+            type: Value(original.type),
+            amount: Value(allocation.amount),
+            splitGroupId: Value(splitGroupId),
+            loanId: Value(allocation.loanId),
+            dateOf: Value(original.dateOf),
+            createdAt: Value(now),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+
+      if (remainder > 0.05) {
+        await into(transactions).insert(
+          TransactionsCompanion(
+            bankId: Value(original.bankId),
+            category: Value(
+              isReturn ? '$incomeOtherIndex' : '$expenseOtherIndex',
+            ),
+            type: Value(original.type),
+            amount: Value(remainder),
+            splitGroupId: Value(splitGroupId),
+            dateOf: Value(original.dateOf),
+            createdAt: Value(now),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+    });
   }
 
   @Deprecated('Use linkRepaymentToLoan or linkReturnToLentLoan')
@@ -240,6 +418,7 @@ class LoanDao extends DatabaseAccessor<AppDatabase> with _$LoanDaoMixin {
             category: row.category,
             type: row.type,
             amount: row.amount,
+            splitGroupId: row.splitGroupId,
             transferId: row.transferId,
             budgetLineItemId: row.budgetLineItemId,
             loanId: row.loanId,

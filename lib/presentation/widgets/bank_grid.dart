@@ -12,8 +12,8 @@ import '../controllers/bank_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_style.dart';
 import '../util/cash_bank.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/app_snackbar.dart';
-import 'custom_textfield.dart';
 
 class BanksGrid extends StatefulWidget {
 
@@ -108,261 +108,235 @@ class _BanksGridState extends State<BanksGrid> {
       selectedBank = availableBanks.first;
     }
 
-    showDialog(
+    showAppDialog(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-          backgroundColor: AppColors.background,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10), // smaller radius
-          ),
-          title: Text("Add Account", style: AppTextStyles.headline1,),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CustomDropdown(
-                value: selectedBank,
-                hint: "Bank Name",
-                items: availableBanks,
-                onChanged: (value) {
-                  setDialogState(() {
-                    selectedBank = value!;
-                  });
-                },
-              ),
-              // Bank Name Field
+            return AppDialog(
+              title: 'Add account',
+              subtitle: 'Connect a bank or add a cash wallet',
+              scrollable: true,
+              maxHeight: 480,
+              actions: [
+                AppDialogActions.cancel(dialogContext),
+                AppDialogActions.primary(
+                  label: 'Add',
+                  onPressed: () async {
+                    final bankName = selectedBank;
+                    String? displayName = _displayNameController.text.trim();
 
-              const SizedBox(height: 16),
+                    if (bankName.isEmpty) return;
 
-              if (isCashBankName(selectedBank)) ...[
-                CustomTextField(
-                  controller: _startingBalanceController,
-                  hintText: 'Starting cash balance',
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Cash transactions are entered manually — no SMS import.',
-                  style: AppTextStyles.lightBody1,
-                ),
-              ] else
-                InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: importFromDate,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
-                      helpText: 'Import transactions from',
+                    final initialBalance = isCashBankName(bankName)
+                        ? (double.tryParse(
+                              _startingBalanceController.text.trim(),
+                            ) ??
+                            0)
+                        : 0.0;
+
+                    if (isCashBankName(bankName) && initialBalance < 0) {
+                      AppSnackbar.showError(
+                        'Starting balance cannot be negative',
+                      );
+                      return;
+                    }
+
+                    if (displayName.isEmpty) {
+                      displayName = null;
+                    }
+                    _importFromDate = importFromDate;
+                    await bankController.addBank(
+                      bankName,
+                      displayName,
+                      importFromDate,
+                      initialBalance: initialBalance,
                     );
-                    if (picked != null) {
-                      setDialogState(() {
-                        importFromDate = DateTime(
-                          picked.year,
-                          picked.month,
-                          picked.day,
-                        );
-                      });
+
+                    selectedBank = '';
+                    _displayNameController.clear();
+                    _startingBalanceController.clear();
+                    _importFromDate = DateTime(
+                      DateTime.now().year,
+                      DateTime.now().month,
+                      1,
+                    );
+
+                    await transactionController.fetchSavedTransactions();
+
+                    setState(() {
+                      bankController.selectedIndexes.clear();
+                      bankController.selectedIndexes.addAll(
+                        List.generate(
+                          bankController.banks.length,
+                          (index) => index,
+                        ),
+                      );
+                    });
+
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
                     }
                   },
-                  borderRadius: BorderRadius.circular(8),
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: 'Import from date',
-                      labelStyle: AppTextStyles.body1,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      suffixIcon: const Icon(Icons.calendar_today),
-                    ),
-                    child: Text(
-                      DateFormat.yMMMd().format(importFromDate),
-                      style: AppTextStyles.body1,
-                    ),
-                  ),
                 ),
-
-              const SizedBox(height: 16),
-
-              // Display Name Field
-              CustomTextField(controller: _displayNameController, hintText: "Display Name", suffixIcon:Icons.info_outline, onSuffixPressed: (){
-                showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor: AppColors.background,
-                    title:  Text("Display Name Info", style: AppTextStyles.headline1,),
-                    content: Text(
-                        "Enter a friendly name for the account.",style: AppTextStyles.body1 ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child:  Text("OK", style: AppTextStyles.smallButton2),
-                      ),
-                    ],
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  CustomDropdown(
+                    value: selectedBank,
+                    hint: 'Bank Name',
+                    items: availableBanks,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedBank = value!;
+                      });
+                    },
                   ),
-                );
-              },),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: Text("Cancel", style: AppTextStyles.smallButton2),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final bankName = selectedBank;
-                String? displayName = _displayNameController.text.trim();
+                  const SizedBox(height: 16),
+                  if (isCashBankName(selectedBank)) ...[
+                    AppDialogField(
+                      controller: _startingBalanceController,
+                      hintText: 'Starting cash balance',
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Cash transactions are entered manually — no SMS import.',
+                      style: AppTextStyles.lightBody1
+                          .copyWith(color: AppColors.mutedText),
+                    ),
+                  ] else
+                    InkWell(
+                      onTap: () async {
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: importFromDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime.now(),
+                          helpText: 'Import transactions from',
+                        );
+                        if (pickedDate == null || !context.mounted) return;
 
-                if (bankName.isEmpty) return;
+                        final pickedTime = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.fromDateTime(importFromDate),
+                          helpText: 'Import from time',
+                        );
+                        if (pickedTime == null) return;
 
-                final initialBalance = isCashBankName(bankName)
-                    ? (double.tryParse(
-                          _startingBalanceController.text.trim(),
-                        ) ??
-                        0)
-                    : 0.0;
-
-                if (isCashBankName(bankName) && initialBalance < 0) {
-                  AppSnackbar.showError('Starting balance cannot be negative');
-                  return;
-                }
-
-                if (displayName.isEmpty) {
-                  displayName = null;
-                }
-                _importFromDate = importFromDate;
-                await bankController.addBank(
-                  bankName,
-                  displayName,
-                  importFromDate,
-                  initialBalance: initialBalance,
-                );
-
-                selectedBank = "";
-                _displayNameController.clear();
-                _startingBalanceController.clear();
-                _importFromDate = DateTime(
-                  DateTime.now().year,
-                  DateTime.now().month,
-                  1,
-                );
-
-                await transactionController.fetchSavedTransactions();
-
-                setState(() {
-                  bankController.selectedIndexes.clear();
-                  bankController.selectedIndexes.addAll(List.generate(bankController.banks.length, (index) => index));
-
-                });
-
-                Navigator.pop(context);
-              },
-              child:  Text("Add",style: AppTextStyles.smallButton1),
-            ),
-          ],
-        );
+                        setDialogState(() {
+                          importFromDate = DateTime(
+                            pickedDate.year,
+                            pickedDate.month,
+                            pickedDate.day,
+                            pickedTime.hour,
+                            pickedTime.minute,
+                          );
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: InputDecorator(
+                        decoration: appDialogInputDecoration(
+                          labelText: 'Import from (date & time)',
+                          suffixIcon: const Icon(Icons.schedule_rounded),
+                        ),
+                        child: Text(
+                          DateFormat.yMMMd().add_jm().format(importFromDate),
+                          style: AppTextStyles.body1,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  AppDialogField(
+                    controller: _displayNameController,
+                    hintText: 'Display name (optional)',
+                    suffixIcon: IconButton(
+                      tooltip: 'About display name',
+                      onPressed: () {
+                        showAppConfirmDialog(
+                          context: context,
+                          title: 'Display name',
+                          message:
+                              'Enter a friendly name for the account, like “Salary CBE”.',
+                          confirmLabel: 'OK',
+                          cancelLabel: 'Close',
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.info_outline_rounded,
+                        color: AppColors.mutedText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
           },
         );
       },
     );
   }
 
-
-
   void _showEditBankDialog(Bank bank) {
-    showDialog(
+    selectedBank = bank.bankName;
+    _displayNameController.text = bank.displayName ?? '';
+
+    showAppDialog(
       context: context,
-      builder: (context) {
-        selectedBank = bank.bankName;
-        _displayNameController.text = bank.displayName ?? "";
-
-        return AlertDialog(
-          backgroundColor: AppColors.background,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10), // smaller radius
-          ),
-          title: Text("Update Account", style: AppTextStyles.headline1,),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CustomDropdown(isEnabled: false, value: selectedBank, hint:"Bank Name", items: bankNamesAll, onChanged: (value) {
-                setState(() {
-                  selectedBank = value!;
-
-                });
-              },),
-              // Bank Name Field
-
-              const SizedBox(height: 16),
-
-
-
-              // Display Name Field
-              CustomTextField(controller: _displayNameController, hintText: "Display Name", suffixIcon:Icons.info_outline, onSuffixPressed: (){
-                showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    backgroundColor: AppColors.background,
-                    title:  Text("Display Name Info", style: AppTextStyles.headline1,),
-                    content: Text(
-                        "Enter a friendly name for the account.",style: AppTextStyles.body1 ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child:  Text("OK", style: AppTextStyles.smallButton2),
-                      ),
-                    ],
-                  ),
-                );
-              },),
-
-              const SizedBox(height: 16),
-
-            ],
-          ),
+      builder: (dialogContext) {
+        return AppDialog(
+          title: 'Update account',
+          subtitle: 'Change the display name for this account',
+          scrollable: false,
+          maxHeight: 360,
           actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: Text("Cancel", style: AppTextStyles.smallButton2),
-            ),
-            ElevatedButton(
+            AppDialogActions.cancel(dialogContext),
+            AppDialogActions.primary(
+              label: 'Save',
               onPressed: () async {
-                final bankName = selectedBank;
                 String? displayName = _displayNameController.text.trim();
-
-                if (displayName.isEmpty){
+                if (displayName.isEmpty) {
                   displayName = null;
                 }
 
-                    var editBank = Bank(userId: bank.userId,
-                        id: bank.id,
-                        displayName: displayName,
-                        bankName: bank.bankName,
-                        balance: bank.balance,
-                        createdAt: DateTime.now(),
-                        updatedAt: DateTime.now());
-                    bankController.editBank(editBank);
-
-
-
-
-
-
-
-                Navigator.pop(context);
+                final editBank = Bank(
+                  userId: bank.userId,
+                  id: bank.id,
+                  displayName: displayName,
+                  bankName: bank.bankName,
+                  balance: bank.balance,
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                );
+                bankController.editBank(editBank);
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
               },
-              child:  Text("Edit",style: AppTextStyles.smallButton1),
             ),
           ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CustomDropdown(
+                isEnabled: false,
+                value: selectedBank,
+                hint: 'Bank Name',
+                items: bankNamesAll,
+                onChanged: (_) {},
+              ),
+              const SizedBox(height: 16),
+              AppDialogField(
+                controller: _displayNameController,
+                hintText: 'Display name (optional)',
+              ),
+            ],
+          ),
         );
       },
     );

@@ -108,42 +108,62 @@ class _TransactionCardState extends State<TransactionCard> {
                 final position = renderBox.localToGlobal(Offset.zero);
                 await showDialog(
                   context: context,
-                  barrierColor: Colors.black26,
+                  barrierColor: Colors.black.withValues(alpha: 0.35),
                   builder: (_) {
+                    final size = MediaQuery.sizeOf(context);
+                    final left = (position.dx + renderBox.size.width - 168)
+                        .clamp(16.0, size.width - 184);
                     return Stack(
                       children: [
-                        BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                          child: Container(color: Colors.transparent),
+                        Positioned.fill(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                            child: const SizedBox.expand(),
+                          ),
                         ),
-
                         Positioned(
-                          left: position.dx + renderBox.size.width - 150,
+                          left: left,
                           top: position.dy,
                           child: Material(
                             color: Colors.transparent,
                             child: Container(
-                              width: 150,
+                              width: 168,
                               decoration: BoxDecoration(
-                                color: AppColors.background,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ListTile(
-                                    leading: Icon(Icons.delete_outline, color: Colors.red),
-                                    title: Text("Delete", style: AppTextStyles.body1),
-                                    onTap: () {
-                                      Navigator.pop(context);
-                                      transactionController.removeTransaction(widget.transaction.id!);
-                                    },
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: AppColors.surfaceBorder,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black45,
+                                    blurRadius: 16,
+                                    offset: Offset(0, 8),
                                   ),
                                 ],
                               ),
+                              child: ListTile(
+                                dense: true,
+                                leading: const Icon(
+                                  Icons.delete_outline_rounded,
+                                  color: AppColors.danger,
+                                  size: 20,
+                                ),
+                                title: Text(
+                                  'Delete',
+                                  style: AppTextStyles.midBody1
+                                      .copyWith(color: AppColors.danger),
+                                ),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  transactionController.removeTransaction(
+                                    widget.transaction.id!,
+                                  );
+                                },
+                              ),
                             ),
                           ),
-                        )
+                        ),
                       ],
                     );
                   },

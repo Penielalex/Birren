@@ -16,6 +16,7 @@ import '../widgets/budget_card.dart';
 import '../widgets/budget_context_menu.dart';
 import '../widgets/budget_line_item_row.dart';
 import '../widgets/create_budget_dialog.dart';
+import '../widgets/transfer_budget_dialog.dart';
 
 class MyMoneyPage extends StatefulWidget {
   const MyMoneyPage({super.key});
@@ -162,6 +163,12 @@ class _MyMoneyPageState extends State<MyMoneyPage> {
                             anchorKey: _budgetCardKey,
                             onEdit: () =>
                                 showEditBudgetDialog(context, activeBudget),
+                            onTransfer: activeBudget.lineItems.length >= 2
+                                ? () => showTransferBudgetDialog(
+                                      context,
+                                      budget: activeBudget,
+                                    )
+                                : null,
                             onDelete: () => budgetController
                                 .deleteBudget(activeBudget.id!),
                           );

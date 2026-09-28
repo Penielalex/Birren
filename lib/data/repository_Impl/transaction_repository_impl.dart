@@ -24,6 +24,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
           category: transaction.category,
           type: transaction.type,
           amount: transaction.amount,
+          splitGroupId: transaction.splitGroupId,
           transferId: transaction.transferId,
           budgetLineItemId: transaction.budgetLineItemId,
           loanId: transaction.loanId,
@@ -95,6 +96,24 @@ class TransactionRepositoryImpl implements TransactionRepository {
         cashBankId: cashBankId,
         amount: amount,
         dateOf: dateOf,
+      );
+
+  @override
+  Future<void> splitTransferFeeFromExpense({
+    required int expenseId,
+    required double principalAmount,
+    required double feeAmount,
+    required String principalCategory,
+    required int principalBudgetLineItemId,
+    required int feeBudgetLineItemId,
+  }) =>
+      dao.splitTransferFeeFromExpense(
+        expenseId: expenseId,
+        principalAmount: principalAmount,
+        feeAmount: feeAmount,
+        principalCategory: principalCategory,
+        principalBudgetLineItemId: principalBudgetLineItemId,
+        feeBudgetLineItemId: feeBudgetLineItemId,
       );
 
   @override

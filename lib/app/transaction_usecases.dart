@@ -100,6 +100,28 @@ class LinkInternalTransferToCashUseCase {
       );
 }
 
+class SplitTransferFeeFromExpenseUseCase {
+  final TransactionRepository repository;
+  SplitTransferFeeFromExpenseUseCase(this.repository);
+
+  Future<void> execute({
+    required int expenseId,
+    required double principalAmount,
+    required double feeAmount,
+    required String principalCategory,
+    required int principalBudgetLineItemId,
+    required int feeBudgetLineItemId,
+  }) =>
+      repository.splitTransferFeeFromExpense(
+        expenseId: expenseId,
+        principalAmount: principalAmount,
+        feeAmount: feeAmount,
+        principalCategory: principalCategory,
+        principalBudgetLineItemId: principalBudgetLineItemId,
+        feeBudgetLineItemId: feeBudgetLineItemId,
+      );
+}
+
 class DeleteTransactionUseCase {
   final TransactionRepository repository;
   DeleteTransactionUseCase(this.repository);

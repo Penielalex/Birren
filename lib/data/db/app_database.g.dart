@@ -1255,6 +1255,12 @@ class $TransactionsTable extends Transactions
   late final GeneratedColumn<double> amount = GeneratedColumn<double>(
       'amount', aliasedName, false,
       type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _splitGroupIdMeta =
+      const VerificationMeta('splitGroupId');
+  @override
+  late final GeneratedColumn<int> splitGroupId = GeneratedColumn<int>(
+      'split_group_id', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
   static const VerificationMeta _transferIdMeta =
       const VerificationMeta('transferId');
   @override
@@ -1304,6 +1310,7 @@ class $TransactionsTable extends Transactions
         category,
         type,
         amount,
+        splitGroupId,
         transferId,
         budgetLineItemId,
         loanId,
@@ -1347,6 +1354,12 @@ class $TransactionsTable extends Transactions
           amount.isAcceptableOrUnknown(data['amount']!, _amountMeta));
     } else if (isInserting) {
       context.missing(_amountMeta);
+    }
+    if (data.containsKey('split_group_id')) {
+      context.handle(
+          _splitGroupIdMeta,
+          splitGroupId.isAcceptableOrUnknown(
+              data['split_group_id']!, _splitGroupIdMeta));
     }
     if (data.containsKey('transfer_id')) {
       context.handle(
@@ -1397,6 +1410,8 @@ class $TransactionsTable extends Transactions
           .read(DriftSqlType.string, data['${effectivePrefix}type'])!,
       amount: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}amount'])!,
+      splitGroupId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}split_group_id']),
       transferId: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}transfer_id']),
       budgetLineItemId: attachedDatabase.typeMapping.read(
@@ -1424,6 +1439,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String category;
   final String type;
   final double amount;
+  final int? splitGroupId;
   final int? transferId;
   final int? budgetLineItemId;
   final int? loanId;
@@ -1436,6 +1452,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       required this.category,
       required this.type,
       required this.amount,
+      this.splitGroupId,
       this.transferId,
       this.budgetLineItemId,
       this.loanId,
@@ -1450,6 +1467,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     map['category'] = Variable<String>(category);
     map['type'] = Variable<String>(type);
     map['amount'] = Variable<double>(amount);
+    if (!nullToAbsent || splitGroupId != null) {
+      map['split_group_id'] = Variable<int>(splitGroupId);
+    }
     if (!nullToAbsent || transferId != null) {
       map['transfer_id'] = Variable<int>(transferId);
     }
@@ -1472,6 +1492,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       category: Value(category),
       type: Value(type),
       amount: Value(amount),
+      splitGroupId: splitGroupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(splitGroupId),
       transferId: transferId == null && nullToAbsent
           ? const Value.absent()
           : Value(transferId),
@@ -1495,6 +1518,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       category: serializer.fromJson<String>(json['category']),
       type: serializer.fromJson<String>(json['type']),
       amount: serializer.fromJson<double>(json['amount']),
+      splitGroupId: serializer.fromJson<int?>(json['splitGroupId']),
       transferId: serializer.fromJson<int?>(json['transferId']),
       budgetLineItemId: serializer.fromJson<int?>(json['budgetLineItemId']),
       loanId: serializer.fromJson<int?>(json['loanId']),
@@ -1512,6 +1536,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'category': serializer.toJson<String>(category),
       'type': serializer.toJson<String>(type),
       'amount': serializer.toJson<double>(amount),
+      'splitGroupId': serializer.toJson<int?>(splitGroupId),
       'transferId': serializer.toJson<int?>(transferId),
       'budgetLineItemId': serializer.toJson<int?>(budgetLineItemId),
       'loanId': serializer.toJson<int?>(loanId),
@@ -1527,6 +1552,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           String? category,
           String? type,
           double? amount,
+          Value<int?> splitGroupId = const Value.absent(),
           Value<int?> transferId = const Value.absent(),
           Value<int?> budgetLineItemId = const Value.absent(),
           Value<int?> loanId = const Value.absent(),
@@ -1539,6 +1565,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
         category: category ?? this.category,
         type: type ?? this.type,
         amount: amount ?? this.amount,
+        splitGroupId:
+            splitGroupId.present ? splitGroupId.value : this.splitGroupId,
         transferId: transferId.present ? transferId.value : this.transferId,
         budgetLineItemId: budgetLineItemId.present
             ? budgetLineItemId.value
@@ -1555,6 +1583,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       category: data.category.present ? data.category.value : this.category,
       type: data.type.present ? data.type.value : this.type,
       amount: data.amount.present ? data.amount.value : this.amount,
+      splitGroupId: data.splitGroupId.present
+          ? data.splitGroupId.value
+          : this.splitGroupId,
       transferId:
           data.transferId.present ? data.transferId.value : this.transferId,
       budgetLineItemId: data.budgetLineItemId.present
@@ -1575,6 +1606,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('category: $category, ')
           ..write('type: $type, ')
           ..write('amount: $amount, ')
+          ..write('splitGroupId: $splitGroupId, ')
           ..write('transferId: $transferId, ')
           ..write('budgetLineItemId: $budgetLineItemId, ')
           ..write('loanId: $loanId, ')
@@ -1586,8 +1618,19 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   }
 
   @override
-  int get hashCode => Object.hash(id, bankId, category, type, amount,
-      transferId, budgetLineItemId, loanId, dateOf, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+      id,
+      bankId,
+      category,
+      type,
+      amount,
+      splitGroupId,
+      transferId,
+      budgetLineItemId,
+      loanId,
+      dateOf,
+      createdAt,
+      updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1597,6 +1640,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.category == this.category &&
           other.type == this.type &&
           other.amount == this.amount &&
+          other.splitGroupId == this.splitGroupId &&
           other.transferId == this.transferId &&
           other.budgetLineItemId == this.budgetLineItemId &&
           other.loanId == this.loanId &&
@@ -1611,6 +1655,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String> category;
   final Value<String> type;
   final Value<double> amount;
+  final Value<int?> splitGroupId;
   final Value<int?> transferId;
   final Value<int?> budgetLineItemId;
   final Value<int?> loanId;
@@ -1623,6 +1668,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.category = const Value.absent(),
     this.type = const Value.absent(),
     this.amount = const Value.absent(),
+    this.splitGroupId = const Value.absent(),
     this.transferId = const Value.absent(),
     this.budgetLineItemId = const Value.absent(),
     this.loanId = const Value.absent(),
@@ -1636,6 +1682,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     required String category,
     required String type,
     required double amount,
+    this.splitGroupId = const Value.absent(),
     this.transferId = const Value.absent(),
     this.budgetLineItemId = const Value.absent(),
     this.loanId = const Value.absent(),
@@ -1653,6 +1700,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? category,
     Expression<String>? type,
     Expression<double>? amount,
+    Expression<int>? splitGroupId,
     Expression<int>? transferId,
     Expression<int>? budgetLineItemId,
     Expression<int>? loanId,
@@ -1666,6 +1714,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (category != null) 'category': category,
       if (type != null) 'type': type,
       if (amount != null) 'amount': amount,
+      if (splitGroupId != null) 'split_group_id': splitGroupId,
       if (transferId != null) 'transfer_id': transferId,
       if (budgetLineItemId != null) 'budget_line_item_id': budgetLineItemId,
       if (loanId != null) 'loan_id': loanId,
@@ -1681,6 +1730,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       Value<String>? category,
       Value<String>? type,
       Value<double>? amount,
+      Value<int?>? splitGroupId,
       Value<int?>? transferId,
       Value<int?>? budgetLineItemId,
       Value<int?>? loanId,
@@ -1693,6 +1743,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       category: category ?? this.category,
       type: type ?? this.type,
       amount: amount ?? this.amount,
+      splitGroupId: splitGroupId ?? this.splitGroupId,
       transferId: transferId ?? this.transferId,
       budgetLineItemId: budgetLineItemId ?? this.budgetLineItemId,
       loanId: loanId ?? this.loanId,
@@ -1719,6 +1770,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     }
     if (amount.present) {
       map['amount'] = Variable<double>(amount.value);
+    }
+    if (splitGroupId.present) {
+      map['split_group_id'] = Variable<int>(splitGroupId.value);
     }
     if (transferId.present) {
       map['transfer_id'] = Variable<int>(transferId.value);
@@ -1749,6 +1803,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('category: $category, ')
           ..write('type: $type, ')
           ..write('amount: $amount, ')
+          ..write('splitGroupId: $splitGroupId, ')
           ..write('transferId: $transferId, ')
           ..write('budgetLineItemId: $budgetLineItemId, ')
           ..write('loanId: $loanId, ')
@@ -4574,6 +4629,7 @@ typedef $$TransactionsTableCreateCompanionBuilder = TransactionsCompanion
   required String category,
   required String type,
   required double amount,
+  Value<int?> splitGroupId,
   Value<int?> transferId,
   Value<int?> budgetLineItemId,
   Value<int?> loanId,
@@ -4588,6 +4644,7 @@ typedef $$TransactionsTableUpdateCompanionBuilder = TransactionsCompanion
   Value<String> category,
   Value<String> type,
   Value<double> amount,
+  Value<int?> splitGroupId,
   Value<int?> transferId,
   Value<int?> budgetLineItemId,
   Value<int?> loanId,
@@ -4649,6 +4706,9 @@ class $$TransactionsTableFilterComposer
 
   ColumnFilters<double> get amount => $composableBuilder(
       column: $table.amount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get splitGroupId => $composableBuilder(
+      column: $table.splitGroupId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get transferId => $composableBuilder(
       column: $table.transferId, builder: (column) => ColumnFilters(column));
@@ -4728,6 +4788,10 @@ class $$TransactionsTableOrderingComposer
   ColumnOrderings<double> get amount => $composableBuilder(
       column: $table.amount, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<int> get splitGroupId => $composableBuilder(
+      column: $table.splitGroupId,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get transferId => $composableBuilder(
       column: $table.transferId, builder: (column) => ColumnOrderings(column));
 
@@ -4805,6 +4869,9 @@ class $$TransactionsTableAnnotationComposer
 
   GeneratedColumn<double> get amount =>
       $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<int> get splitGroupId => $composableBuilder(
+      column: $table.splitGroupId, builder: (column) => column);
 
   GeneratedColumn<int> get transferId => $composableBuilder(
       column: $table.transferId, builder: (column) => column);
@@ -4890,6 +4957,7 @@ class $$TransactionsTableTableManager extends RootTableManager<
             Value<String> category = const Value.absent(),
             Value<String> type = const Value.absent(),
             Value<double> amount = const Value.absent(),
+            Value<int?> splitGroupId = const Value.absent(),
             Value<int?> transferId = const Value.absent(),
             Value<int?> budgetLineItemId = const Value.absent(),
             Value<int?> loanId = const Value.absent(),
@@ -4903,6 +4971,7 @@ class $$TransactionsTableTableManager extends RootTableManager<
             category: category,
             type: type,
             amount: amount,
+            splitGroupId: splitGroupId,
             transferId: transferId,
             budgetLineItemId: budgetLineItemId,
             loanId: loanId,
@@ -4916,6 +4985,7 @@ class $$TransactionsTableTableManager extends RootTableManager<
             required String category,
             required String type,
             required double amount,
+            Value<int?> splitGroupId = const Value.absent(),
             Value<int?> transferId = const Value.absent(),
             Value<int?> budgetLineItemId = const Value.absent(),
             Value<int?> loanId = const Value.absent(),
@@ -4929,6 +4999,7 @@ class $$TransactionsTableTableManager extends RootTableManager<
             category: category,
             type: type,
             amount: amount,
+            splitGroupId: splitGroupId,
             transferId: transferId,
             budgetLineItemId: budgetLineItemId,
             loanId: loanId,

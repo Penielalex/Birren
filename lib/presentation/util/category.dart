@@ -23,6 +23,9 @@ const int expenseTransferFeeIndex = 24;
 /// Index of "Returns" in [incomeCategories].
 const int incomeReturnsIndex = 2;
 
+/// Index of "Other" in [incomeCategories].
+const int incomeOtherIndex = 4;
+
 /// Index of "Loan" in [incomeCategories] — money borrowed from outside.
 const int incomeLoanIndex = 7;
 
@@ -31,6 +34,9 @@ const int expenseLoanIndex = 13;
 
 /// Index of "Loan" in [expenseCategories] — money you lend to someone.
 const int expenseLendLoanIndex = 25;
+
+/// Index of "Other" in [expenseCategories].
+const int expenseOtherIndex = 16;
 
 bool isInternalTransferCategory(String category, String type) {
   if (type == 'Income') {

@@ -4,8 +4,8 @@ import 'package:birren/presentation/controllers/budget_controller.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
 import 'package:birren/presentation/util/budget_date_format.dart';
+import 'package:birren/presentation/widgets/app_dialog.dart';
 import 'package:birren/presentation/widgets/app_snackbar.dart';
-import 'package:birren/presentation/widgets/custom_textfield.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -23,14 +23,14 @@ class _LineItemDraft {
 }
 
 void showCreateBudgetDialog(BuildContext context) {
-  showDialog(
+  showAppDialog(
     context: context,
     builder: (context) => const _BudgetFormDialog(),
   );
 }
 
 void showEditBudgetDialog(BuildContext context, Budget budget) {
-  showDialog(
+  showAppDialog(
     context: context,
     builder: (context) => _BudgetFormDialog(editBudget: budget),
   );
@@ -209,149 +209,110 @@ class _BudgetFormDialogState extends State<_BudgetFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: AppColors.background,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 560, maxWidth: 420),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _isEditing ? 'Edit Budget' : 'Create Budget',
-                style: AppTextStyles.headline1,
+    return AppDialog(
+      title: _isEditing ? 'Edit budget' : 'Create budget',
+      subtitle: 'Set a period and allocate amounts to budget items',
+      expandBody: true,
+      scrollable: true,
+      maxHeight: 580,
+      actions: [
+        AppDialogActions.cancel(context),
+        AppDialogActions.primary(
+          label: _isEditing ? 'Save' : 'Create',
+          onPressed: _submit,
+        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppDialogField(
+            controller: _nameController,
+            hintText: 'Budget name',
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: _pickStartDate,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: AppColors.surfaceBorder),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      CustomTextField(
-                        controller: _nameController,
-                        hintText: 'Budget name',
-                      ),
-                      const SizedBox(height: 12),
-                      Column(
-                        children: [
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: _pickStartDate,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                side: const BorderSide(color: AppColors.accent),
-                              ),
-                              child: Text(
-                                'Start: ${_formatDateTime(_startDate)}',
-                                style: AppTextStyles.body1,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: _pickEndDate,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                side: const BorderSide(color: AppColors.accent),
-                              ),
-                              child: Text(
-                                'End: ${_formatDateTime(_endDate)}',
-                                style: AppTextStyles.body1,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Budget items',
-                          style: AppTextStyles.body1,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ..._lineItems.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final draft = entry.value;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Column(
-                            children: [
-                              CustomTextField(
-                                controller: draft.nameController,
-                                hintText: 'Name (e.g. Food)',
-                              ),
-                              const SizedBox(height: 8),
-                              CustomTextField(
-                                controller: draft.amountController,
-                                hintText: 'Amount',
-                                keyboardType: TextInputType.number,
-                              ),
-                              if (_lineItems.length > 1)
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: () => _removeLineItem(index),
-                                    child: Text(
-                                      'Remove',
-                                      style: AppTextStyles.smallButton2,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      }),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _lineItems.add(_LineItemDraft());
-                            });
-                          },
-                          icon: const Icon(Icons.add, color: AppColors.accent),
-                          label: Text(
-                            'Add item',
-                            style: AppTextStyles.smallButton1,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+            ),
+            child: Text(
+              'Start: ${_formatDateTime(_startDate)}',
+              style: AppTextStyles.body1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: _pickEndDate,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: AppColors.surfaceBorder),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+            ),
+            child: Text(
+              'End: ${_formatDateTime(_endDate)}',
+              style: AppTextStyles.body1,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('Budget items', style: AppTextStyles.midBody1),
+          const SizedBox(height: 8),
+          ..._lineItems.asMap().entries.map((entry) {
+            final index = entry.key;
+            final draft = entry.value;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text('Cancel', style: AppTextStyles.smallButton2),
+                  AppDialogField(
+                    controller: draft.nameController,
+                    hintText: 'Name (e.g. Food)',
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accent,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: _submit,
-                    child: Text(
-                      _isEditing ? 'Save' : 'Create',
-                      style: AppTextStyles.smallButton1.copyWith(
-                        color: Colors.white,
+                  const SizedBox(height: 8),
+                  AppDialogField(
+                    controller: draft.amountController,
+                    hintText: 'Amount',
+                    keyboardType: TextInputType.number,
+                  ),
+                  if (_lineItems.length > 1)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => _removeLineItem(index),
+                        child: Text(
+                          'Remove',
+                          style: AppTextStyles.body1
+                              .copyWith(color: AppColors.danger),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
-            ],
+            );
+          }),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  _lineItems.add(_LineItemDraft());
+                });
+              },
+              icon: const Icon(Icons.add_rounded, color: AppColors.accent),
+              label: Text(
+                'Add item',
+                style: AppTextStyles.midBody1.copyWith(color: AppColors.accent),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

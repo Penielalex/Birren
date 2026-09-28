@@ -37,12 +37,10 @@ class CustomDropdown extends StatelessWidget {
       ),
       child: DropdownButtonFormField<String>(
         style: AppTextStyles.body1,
-
-        hint: Text(isEnabled? hint : value, style: AppTextStyles.hint,),
+        value: value.isEmpty ? null : value,
+        hint: Text(isEnabled ? hint : value, style: AppTextStyles.hint),
         dropdownColor: AppColors.background,
         decoration: InputDecoration(
-
-
           filled: true,
           fillColor: AppColors.background,
           enabledBorder: OutlineInputBorder(
@@ -54,10 +52,6 @@ class CustomDropdown extends StatelessWidget {
             borderSide: BorderSide(color: AppColors.accent, width: 2),
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-
-          // Add suffix icon if provided
-
-
         ),
         items: items
             .map((item) => DropdownMenuItem(

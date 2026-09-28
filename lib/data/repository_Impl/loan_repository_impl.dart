@@ -48,6 +48,26 @@ class LoanRepositoryImpl implements LoanRepository {
       );
 
   @override
+  Future<void> splitSharedExpense({
+    required int originalTransactionId,
+    required int userId,
+    required double yourShare,
+    required double friendsShare,
+    required String yourCategoryIndex,
+    int? budgetLineItemId,
+    String? counterpartyName,
+  }) =>
+      dao.splitSharedExpense(
+        originalTransactionId: originalTransactionId,
+        userId: userId,
+        yourShare: yourShare,
+        friendsShare: friendsShare,
+        yourCategoryIndex: yourCategoryIndex,
+        budgetLineItemId: budgetLineItemId,
+        counterpartyName: counterpartyName,
+      );
+
+  @override
   Future<void> linkRepaymentToLoan({
     required int repaymentTransactionId,
     required int loanId,
@@ -65,6 +85,18 @@ class LoanRepositoryImpl implements LoanRepository {
       dao.linkReturnToLentLoan(
         returnTransactionId: returnTransactionId,
         loanId: loanId,
+      );
+
+  @override
+  Future<void> allocatePaymentAcrossLoans({
+    required int paymentTransactionId,
+    required List<({int loanId, double amount})> allocations,
+    required bool isReturn,
+  }) =>
+      dao.allocatePaymentAcrossLoans(
+        paymentTransactionId: paymentTransactionId,
+        allocations: allocations,
+        isReturn: isReturn,
       );
 
   @override

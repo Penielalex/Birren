@@ -17,6 +17,15 @@ abstract class LoanRepository {
     required double principalAmount,
     String? counterpartyName,
   });
+  Future<void> splitSharedExpense({
+    required int originalTransactionId,
+    required int userId,
+    required double yourShare,
+    required double friendsShare,
+    required String yourCategoryIndex,
+    int? budgetLineItemId,
+    String? counterpartyName,
+  });
   Future<void> linkRepaymentToLoan({
     required int repaymentTransactionId,
     required int loanId,
@@ -24,6 +33,11 @@ abstract class LoanRepository {
   Future<void> linkReturnToLentLoan({
     required int returnTransactionId,
     required int loanId,
+  });
+  Future<void> allocatePaymentAcrossLoans({
+    required int paymentTransactionId,
+    required List<({int loanId, double amount})> allocations,
+    required bool isReturn,
   });
   Future<int?> closeLoan({
     required int loanId,

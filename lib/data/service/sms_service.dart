@@ -35,11 +35,14 @@ class SmsService {
 
 
   Future<bool> requestPermission() async {
+    var status = await Permission.sms.status;
+    if (status.isGranted) return true;
 
-    final status = await Permission.sms.request();
+    status = await Permission.sms.request();
+    if (status.isGranted) return true;
 
-    return status.isGranted;
-
+    logger.w('SMS permission not granted: $status');
+    return false;
   }
 
 
@@ -92,60 +95,69 @@ class SmsService {
 
 
 
+  /// Latest reported account balance from SMS — independent of any import
+  /// cutoff. Scans newest → oldest until a message with a balance is found
+  /// (including non-actionable messages like BOA POS locks).
   Future<Map<String, dynamic>?> fetchLastAmount({
-
     required String sender,
-
   }) async {
-
-    logger.i("fetching last amount for $sender");
+    logger.i('fetching latest balance for $sender (ignores import cutoff)');
 
     try {
+      var offset = 0;
+      while (true) {
+        final messages = await smsPlatform.getSmsByDateRange(
+          startDate: DateTime(2000),
+          endDate: DateTime.now(),
+          sender: sender,
+          limit: _pageSize,
+          offset: offset,
+        );
 
-      final msg = await smsPlatform.getLatestSms(sender: sender);
+        if (messages.isEmpty) {
+          break;
+        }
 
-      if (msg == null) {
+        for (final msg in messages) {
+          final body = msg.body;
+          if (body == null || body.trim().isEmpty) continue;
 
-        logger.i("no messages found for $sender");
+          final parsed = _parseSmsBody(body, bank: sender);
+          final balance = parsed?.balance ??
+              SmsRegexParser.extractBalance(bank: sender, body: body);
+          if (balance == null) continue;
 
-        return null;
+          final msgDate =
+              msg.date ?? DateTime.fromMillisecondsSinceEpoch(0);
+          logger.i(
+            'Latest balance for $sender: $balance '
+            '(from ${parsed?.isActionable == true ? 'transaction' : 'balance-only'} '
+            'SMS at $msgDate)',
+          );
 
+          return {
+            'transactionType': parsed?.transactionType ?? 'unknown',
+            'firstAmount': parsed?.amount,
+            'balanceAmount': balance,
+            'currency': parsed?.currency ?? 'ETB',
+            'date': msgDate,
+            'address': msg.address,
+          };
+        }
+
+        if (messages.length < _pageSize) {
+          break;
+        }
+        offset += _pageSize;
       }
 
-
-
-      logger.i(msg.body);
-
-      final transaction = _parseSmsBody(msg.body, bank: sender);
-
-      if (transaction == null) {
-
-        logger.i("no transaction found in latest message for $sender");
-
-        return null;
-
-      }
-
-
-
-      return transaction.toSmsMap(
-
-        date: msg.date ?? DateTime.fromMillisecondsSinceEpoch(0),
-
-        address: msg.address,
-
-      );
-
-    } catch (e, stack) {
-
-      logger.e("Error fetching messages for $sender: $e");
-
-      logger.e(stack);
-
+      logger.i('no balance found in SMS for $sender');
       return null;
-
+    } catch (e, stack) {
+      logger.e('Error fetching balance for $sender: $e');
+      logger.e(stack);
+      return null;
     }
-
   }
 
 

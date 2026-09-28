@@ -4,14 +4,13 @@ import 'package:birren/presentation/theme/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:loading_animation_widget/loading_animation_widget.dart';
 
 import '../../domain/entities/bank.dart';
 import '../theme/text_style.dart';
-import '../util/cash_bank.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/bank_grid.dart';
 import '../widgets/category_picker_dialog.dart';
-import '../widgets/manual_cash_transaction_dialog.dart';
+import '../widgets/manual_transaction_dialog.dart';
 import '../widgets/transaction_card.dart';
 import '../widgets/transaction_list.dart';
 
@@ -80,72 +79,16 @@ class _AccountsPageState extends State<AccountsPage> {
 
 
   void _showAddingBankDialog() {
-    showDialog(
+    showAppLoadingDialog(
       context: context,
-      barrierDismissible: false, // user cannot dismiss by tapping outside
-      builder: (context) {
-        return Center(
-          child: Container(
-            height: 290,
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                LoadingAnimationWidget.progressiveDots(color: AppColors.accent, size: 100),
-                const SizedBox(height: 16),
-                Text(
-                  'Importing transactions from your messages…',
-                  style: AppTextStyles.body1.copyWith(
-                    decoration: TextDecoration.none, // remove any underline
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      message: 'Importing transactions from your messages…',
     );
   }
 
   void _showTransactionDialog() {
-    showDialog(
+    showAppLoadingDialog(
       context: context,
-      barrierDismissible: false, // user cannot dismiss by tapping outside
-      builder: (context) {
-        return Center(
-          child: Container(
-            height: 290,
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                LoadingAnimationWidget.progressiveDots(color: AppColors.accent, size: 100),
-                const SizedBox(height: 16),
-                Text(
-                  'Loading transactions',
-                  style: AppTextStyles.body1.copyWith(
-                    decoration: TextDecoration.none, // remove any underline
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      message: 'Loading transactions…',
     );
   }
 
@@ -199,31 +142,33 @@ class _AccountsPageState extends State<AccountsPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       floatingActionButton: Obx(() {
-        Bank? selectedCash;
-        for (final index in bankController.selectedIndexes) {
-          if (index >= 0 && index < bankController.banks.length) {
-            final bank = bankController.banks[index];
-            if (isCashBankName(bank.bankName)) {
-              selectedCash = bank;
-              break;
-            }
-          }
+        if (bankController.banks.isEmpty) {
+          return const SizedBox.shrink();
         }
 
-        if (selectedCash == null) {
-          return const SizedBox.shrink();
+        Bank? preferred;
+        for (final index in bankController.selectedIndexes) {
+          if (index >= 0 && index < bankController.banks.length) {
+            preferred = bankController.banks[index];
+            break;
+          }
         }
 
         return FloatingActionButton(
           backgroundColor: AppColors.accent,
-          onPressed: () => showManualCashTransactionDialog(
+          tooltip: 'Add transaction',
+          onPressed: () => showManualTransactionDialog(
             context,
-            selectedCash!,
+            initialBank: preferred,
           ),
-          child: const Icon(Icons.add, color: Colors.white),
+          child: const Icon(Icons.add, color: Color(0xFF0B1020)),
         );
       }),
-      body: bankController.isLoading.value ? Center(child: LoadingAnimationWidget.inkDrop(color: AppColors.accent, size: 25)): SafeArea(
+      body: bankController.isLoading.value
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            )
+          : SafeArea(
         child: RefreshIndicator(
           color: AppColors.accent,
           backgroundColor: AppColors.background,

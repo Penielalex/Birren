@@ -225,6 +225,7 @@ class BackupService {
                 category: Value(map['category'] as String),
                 type: Value(map['type'] as String),
                 amount: Value((map['amount'] as num).toDouble()),
+                splitGroupId: Value(map['splitGroupId'] as int?),
                 transferId: Value(map['transferId'] as int?),
                 budgetLineItemId: Value(map['budgetLineItemId'] as int?),
                 loanId: Value(map['loanId'] as int?),

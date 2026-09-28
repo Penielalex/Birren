@@ -12,8 +12,10 @@ class LoanController extends GetxController {
   final GetOpenLoansByUserIdUseCase getOpenLoansByUserIdUseCase;
   final CreateLoanFromDisbursementUseCase createLoanFromDisbursementUseCase;
   final CreateLoanFromLendUseCase createLoanFromLendUseCase;
+  final SplitSharedExpenseUseCase splitSharedExpenseUseCase;
   final LinkRepaymentToLoanUseCase linkRepaymentToLoanUseCase;
   final LinkReturnToLentLoanUseCase linkReturnToLentLoanUseCase;
+  final AllocatePaymentAcrossLoansUseCase allocatePaymentAcrossLoansUseCase;
   final CloseLoanUseCase closeLoanUseCase;
   final GetReturnTransactionsForLoanUseCase getReturnTransactionsForLoanUseCase;
 
@@ -23,8 +25,10 @@ class LoanController extends GetxController {
     required this.getOpenLoansByUserIdUseCase,
     required this.createLoanFromDisbursementUseCase,
     required this.createLoanFromLendUseCase,
+    required this.splitSharedExpenseUseCase,
     required this.linkRepaymentToLoanUseCase,
     required this.linkReturnToLentLoanUseCase,
+    required this.allocatePaymentAcrossLoansUseCase,
     required this.closeLoanUseCase,
     required this.getReturnTransactionsForLoanUseCase,
   });
@@ -205,6 +209,64 @@ class LoanController extends GetxController {
     await _refreshAfterLoanChange();
   }
 
+  /// Split a group bill: your share on budget, friends' share as a lent loan.
+  Future<void> splitSharedExpense({
+    required Transaction original,
+    required double yourShare,
+    required double friendsShare,
+    required String yourCategoryIndex,
+    int? budgetLineItemId,
+    String? counterpartyName,
+  }) async {
+    if (original.id == null) {
+      throw ArgumentError('Transaction must be saved first');
+    }
+    if (original.type != 'Expense') {
+      throw ArgumentError('Only expenses can be split');
+    }
+
+    final total = yourShare + friendsShare;
+    if ((total - original.amount).abs() > 0.01 && yourShare + friendsShare <= 0) {
+      throw ArgumentError('Invalid share amounts');
+    }
+    if (yourShare <= 0 || friendsShare <= 0) {
+      throw ArgumentError('Your share and friends share must both be greater than 0');
+    }
+    if (yourShare + friendsShare > original.amount + 0.01) {
+      throw ArgumentError(
+        'Shares cannot exceed the transaction amount (${original.amount})',
+      );
+    }
+
+    final userId = await prefs.getId();
+    if (userId == null) {
+      throw StateError('User not logged in');
+    }
+
+    // If shares don't cover full amount, keep remainder on your budget share
+    // by adjusting: user enters yourShare + friendsShare that should equal total.
+    // Allow slight float; require they sum to original amount.
+    if ((yourShare + friendsShare - original.amount).abs() > 0.05) {
+      throw ArgumentError(
+        'Your share + friends share must equal the total amount',
+      );
+    }
+
+    await splitSharedExpenseUseCase.execute(
+      originalTransactionId: original.id!,
+      userId: int.parse(userId),
+      yourShare: yourShare,
+      friendsShare: friendsShare,
+      yourCategoryIndex: yourCategoryIndex,
+      budgetLineItemId: budgetLineItemId,
+      counterpartyName: counterpartyName?.trim().isEmpty ?? true
+          ? null
+          : counterpartyName!.trim(),
+    );
+
+    await _refreshAfterLoanChange();
+  }
+
   @Deprecated('Use registerBorrowedLoanFromTransaction')
   Future<void> registerLoanFromTransaction(
     Transaction transaction, {
@@ -262,6 +324,70 @@ class LoanController extends GetxController {
     await linkReturnToLentLoanUseCase.execute(
       returnTransactionId: returnTransaction.id!,
       loanId: loan.id!,
+    );
+
+    await _refreshAfterLoanChange();
+  }
+
+  /// Split one return / repayment across several loans (e.g. one SMS covers
+  /// multiple lent amounts or shared-expense shares).
+  Future<void> allocatePaymentAcrossLoans({
+    required Transaction payment,
+    required List<({Loan loan, double amount})> allocations,
+    required bool isReturn,
+  }) async {
+    if (payment.id == null) {
+      throw ArgumentError('Payment transaction must be saved first');
+    }
+    if (allocations.isEmpty) {
+      throw ArgumentError('Select at least one loan');
+    }
+
+    final expectedType = isReturn ? 'Income' : 'Expense';
+    if (payment.type != expectedType) {
+      throw ArgumentError(
+        isReturn
+            ? 'Returns must be income transactions'
+            : 'Repayments must be expense transactions',
+      );
+    }
+
+    final total = allocations.fold<double>(0, (s, a) => s + a.amount);
+    if (total > payment.amount + 0.05) {
+      throw ArgumentError(
+        'Allocated total cannot exceed ${payment.amount}',
+      );
+    }
+
+    final transactions = Get.find<TransactionController>().transactions;
+    for (final allocation in allocations) {
+      final loan = allocation.loan;
+      if (loan.id == null) {
+        throw ArgumentError('Loan must be saved');
+      }
+      if (!loan.isOpen) {
+        throw StateError('Cannot allocate to a closed loan');
+      }
+      if (isReturn && !isLentLoan(loan, transactions)) {
+        throw StateError('Returns only apply to lent loans');
+      }
+      if (!isReturn && !isBorrowedLoan(loan, transactions)) {
+        throw StateError('Repayments only apply to borrowed loans');
+      }
+      final remaining = remainingBalance(loan, transactions);
+      if (allocation.amount > remaining + 0.05) {
+        throw ArgumentError(
+          'Allocation exceeds remaining balance on loan #${loan.id}',
+        );
+      }
+    }
+
+    await allocatePaymentAcrossLoansUseCase.execute(
+      paymentTransactionId: payment.id!,
+      allocations: [
+        for (final a in allocations) (loanId: a.loan.id!, amount: a.amount),
+      ],
+      isReturn: isReturn,
     );
 
     await _refreshAfterLoanChange();

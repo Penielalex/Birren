@@ -53,6 +53,30 @@ class CreateLoanFromLendUseCase {
       );
 }
 
+class SplitSharedExpenseUseCase {
+  final LoanRepository repository;
+  SplitSharedExpenseUseCase(this.repository);
+
+  Future<void> execute({
+    required int originalTransactionId,
+    required int userId,
+    required double yourShare,
+    required double friendsShare,
+    required String yourCategoryIndex,
+    int? budgetLineItemId,
+    String? counterpartyName,
+  }) =>
+      repository.splitSharedExpense(
+        originalTransactionId: originalTransactionId,
+        userId: userId,
+        yourShare: yourShare,
+        friendsShare: friendsShare,
+        yourCategoryIndex: yourCategoryIndex,
+        budgetLineItemId: budgetLineItemId,
+        counterpartyName: counterpartyName,
+      );
+}
+
 class LinkRepaymentToLoanUseCase {
   final LoanRepository repository;
   LinkRepaymentToLoanUseCase(this.repository);
@@ -78,6 +102,22 @@ class LinkReturnToLentLoanUseCase {
       repository.linkReturnToLentLoan(
         returnTransactionId: returnTransactionId,
         loanId: loanId,
+      );
+}
+
+class AllocatePaymentAcrossLoansUseCase {
+  final LoanRepository repository;
+  AllocatePaymentAcrossLoansUseCase(this.repository);
+
+  Future<void> execute({
+    required int paymentTransactionId,
+    required List<({int loanId, double amount})> allocations,
+    required bool isReturn,
+  }) =>
+      repository.allocatePaymentAcrossLoans(
+        paymentTransactionId: paymentTransactionId,
+        allocations: allocations,
+        isReturn: isReturn,
       );
 }
 

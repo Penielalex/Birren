@@ -333,6 +333,58 @@ class BudgetController extends GetxController {
     await refreshBudgets();
   }
 
+  Future<void> transferAllocatedAmount({
+    required Budget budget,
+    required int fromLineItemId,
+    required int toLineItemId,
+    required double amount,
+  }) async {
+    if (budget.id == null) {
+      throw StateError('Budget is not saved yet');
+    }
+    if (fromLineItemId == toLineItemId) {
+      throw ArgumentError('Choose two different budget items');
+    }
+    if (amount <= 0) {
+      throw ArgumentError('Amount must be greater than 0');
+    }
+
+    final from = budget.lineItems.where((i) => i.id == fromLineItemId);
+    final to = budget.lineItems.where((i) => i.id == toLineItemId);
+    if (from.isEmpty || to.isEmpty) {
+      throw StateError('Budget item not found');
+    }
+
+    final fromItem = from.first;
+    if (amount > fromItem.allocatedAmount + 1e-9) {
+      throw ArgumentError(
+        'Cannot move more than ${fromItem.allocatedAmount} birr from ${fromItem.name}',
+      );
+    }
+
+    final updatedItems = budget.lineItems.map((item) {
+      if (item.id == fromLineItemId) {
+        return item.copyWith(
+          allocatedAmount: fromItem.allocatedAmount - amount,
+        );
+      }
+      if (item.id == toLineItemId) {
+        return item.copyWith(
+          allocatedAmount: item.allocatedAmount + amount,
+        );
+      }
+      return item;
+    }).toList();
+
+    await updateBudget(
+      budgetId: budget.id!,
+      name: budget.name,
+      startDate: budget.startDate,
+      endDate: budget.endDate,
+      lineItems: updatedItems,
+    );
+  }
+
   Future<void> deleteBudget(int budgetId) async {
     await deleteBudgetUseCase.execute(budgetId);
     await refreshBudgets();

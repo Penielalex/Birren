@@ -25,6 +25,83 @@ class SmsRegexParser {
     }
   }
 
+  /// Pulls the reported account balance from an SMS body, even when the
+  /// message is not an actionable transaction (e.g. BOA POS lock holds).
+  static double? extractBalance({
+    required String bank,
+    required String body,
+  }) {
+    final normalized = body.replaceAll(RegExp(r'\s+'), ' ').trim();
+    switch (bank.trim().toLowerCase()) {
+      case 'boa':
+        return _firstMatch(_boaBalancePatterns, normalized);
+      case 'cbe':
+        return _firstMatch(_cbeBalancePatterns, normalized);
+      case '127':
+        return _firstMatch(_telebirrBalancePatterns, normalized);
+      case 'mpesa':
+        return _firstMatch(_mpesaBalancePatterns, normalized);
+      default:
+        return null;
+    }
+  }
+
+  static final _cbeBalancePatterns = [
+    RegExp(
+      r'(?:your\s+)?current\s+balance\s+is\s*:?\s*ETB\s*([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'available\s+balance\s*:?\s*ETB\s*([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+  ];
+
+  static final _boaBalancePatterns = [
+    RegExp(
+      r'available\s+balance\s*(?:is|:)?\s*ETB\s*([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'your\s+available\s+balance\s+is\s+ETB\s*([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+  ];
+
+  static final _telebirrBalancePatterns = [
+    RegExp(
+      r'e-money account\s+balance\s+is\s+ETB\s*([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'your current\s+balance\s+is\s+ETB\s*([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'your current\s+balance\s+is\s+([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'available\s+balance\s*:?\s*ETB\s*([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+  ];
+
+  static final _mpesaBalancePatterns = [
+    RegExp(
+      r'your\s+(?:new|current)\s+m-?pesa balance is\s+([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'your\s+m-?pesa balance is\s+([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+    RegExp(
+      r'm-?pesa balance is\s+([\d,]+\.?\d*)',
+      caseSensitive: false,
+    ),
+  ];
+
   // --- CBE -------------------------------------------------------------------
 
   static ParsedSmsTransaction? _parseCbe(String body) {
@@ -40,16 +117,7 @@ class SmsRegexParser {
     ]);
 
     final amount = _parseCbeAmount(body, type);
-    final balance = _firstMatch([
-      RegExp(
-        r'(?:your\s+)?current\s+balance\s+is\s*:?\s*ETB\s*([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'available\s+balance\s*:?\s*ETB\s*([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-    ], body);
+    final balance = _firstMatch(_cbeBalancePatterns, body);
 
     return _build(type: type, amount: amount, balance: balance);
   }
@@ -155,16 +223,7 @@ class SmsRegexParser {
       ),
     ], body);
 
-    final balance = _firstMatch([
-      RegExp(
-        r'available\s+balance\s*:?\s*ETB\s*([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'your\s+available\s+balance\s+is\s+ETB\s*([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-    ], body);
+    final balance = _firstMatch(_boaBalancePatterns, body);
 
     return _build(type: type, amount: amount, balance: balance);
   }
@@ -185,24 +244,7 @@ class SmsRegexParser {
     ]);
 
     final amount = _parse127Amount(body, type);
-    final balance = _firstMatch([
-      RegExp(
-        r'e-money account\s+balance\s+is\s+ETB\s*([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'your current\s+balance\s+is\s+ETB\s*([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'your current\s+balance\s+is\s+([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'available\s+balance\s*:?\s*ETB\s*([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-    ], body);
+    final balance = _firstMatch(_telebirrBalancePatterns, body);
 
     return _build(type: type, amount: amount, balance: balance);
   }
@@ -284,20 +326,7 @@ class SmsRegexParser {
     ]);
 
     final amount = _parseMpesaAmount(body, type);
-    final balance = _firstMatch([
-      RegExp(
-        r'your\s+(?:new|current)\s+m-?pesa balance is\s+([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'your\s+m-?pesa balance is\s+([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'm-?pesa balance is\s+([\d,]+\.?\d*)',
-        caseSensitive: false,
-      ),
-    ], body);
+    final balance = _firstMatch(_mpesaBalancePatterns, body);
 
     return _build(
       type: type,

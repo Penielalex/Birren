@@ -7,8 +7,8 @@ import 'package:birren/presentation/pages/app_root.dart';
 import 'package:birren/presentation/pages/budget_history_page.dart';
 import 'package:birren/presentation/theme/colors.dart';
 import 'package:birren/presentation/theme/text_style.dart';
+import 'package:birren/presentation/widgets/app_dialog.dart';
 import 'package:birren/presentation/widgets/app_snackbar.dart';
-import 'package:birren/presentation/widgets/custom_textfield.dart';
 import 'package:birren/data/service/backup_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -78,37 +78,21 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     final pinController = TextEditingController();
     final confirmController = TextEditingController();
 
-    final result = await showDialog<String>(
+    final result = await showAppDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.background,
-        title: Text(title, style: AppTextStyles.headline1),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CustomTextField(
-              controller: pinController,
-              hintText: 'PIN (4+ digits)',
-              keyboardType: TextInputType.number,
-              obscureText: true,
-            ),
-            if (confirm) ...[
-              const SizedBox(height: 12),
-              CustomTextField(
-                controller: confirmController,
-                hintText: 'Confirm PIN',
-                keyboardType: TextInputType.number,
-                obscureText: true,
-              ),
-            ],
-          ],
-        ),
+      builder: (dialogContext) => AppDialog(
+        title: title,
+        subtitle: 'Enter a PIN with at least 4 digits',
+        showCloseButton: false,
+        scrollable: false,
+        maxHeight: 360,
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: AppTextStyles.smallButton2),
+          AppDialogActions.cancel(
+            dialogContext,
+            onPressed: () => Navigator.pop(dialogContext),
           ),
-          ElevatedButton(
+          AppDialogActions.primary(
+            label: 'Save',
             onPressed: () {
               final pin = pinController.text.trim();
               if (pin.length < 4) {
@@ -119,11 +103,31 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
                 AppSnackbar.showError('PINs do not match');
                 return;
               }
-              Navigator.pop(context, pin);
+              Navigator.pop(dialogContext, pin);
             },
-            child: Text('Save', style: AppTextStyles.smallButton1),
           ),
         ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppDialogField(
+              controller: pinController,
+              hintText: 'PIN (4+ digits)',
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              autofocus: true,
+            ),
+            if (confirm) ...[
+              const SizedBox(height: 12),
+              AppDialogField(
+                controller: confirmController,
+                hintText: 'Confirm PIN',
+                keyboardType: TextInputType.number,
+                obscureText: true,
+              ),
+            ],
+          ],
+        ),
       ),
     );
 
@@ -152,26 +156,11 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
     if (result == null || result.files.single.path == null) return;
     if (!mounted) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppConfirmDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.background,
-        title: Text('Import data?', style: AppTextStyles.headline1),
-        content: Text(
-          'This replaces all current data with the backup file.',
-          style: AppTextStyles.body1,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: AppTextStyles.smallButton2),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Import', style: AppTextStyles.smallButton1),
-          ),
-        ],
-      ),
+      title: 'Import data?',
+      message: 'This replaces all current data with the backup file.',
+      confirmLabel: 'Import',
     );
     if (confirmed != true) return;
 
@@ -201,35 +190,15 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
   }
 
   Future<void> _logout() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppConfirmDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.background,
-        title: Text('Log out and erase data?', style: AppTextStyles.headline1),
-        content: Text(
+      title: 'Log out and erase data?',
+      message:
           'Logging out will permanently delete all data on this device, '
           'including banks, transactions, budgets, and your PIN. '
           'This cannot be undone. Export a backup first if you want to keep your data.',
-          style: AppTextStyles.body1,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: AppTextStyles.smallButton2),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              'Delete all & log out',
-              style: AppTextStyles.smallButton1.copyWith(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
+      confirmLabel: 'Delete all & log out',
+      destructive: true,
     );
     if (confirmed != true) return;
 
